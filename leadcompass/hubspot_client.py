@@ -4,10 +4,18 @@ import time
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from leadcompass.config import HUBSPOT_TOKEN
 
 BASE_URL = "https://api.hubapi.com"
+
+# GET/PUT/DELETE are safe to retry as-is. PATCH is included because our only
+# PATCH (update_score) sets fields to fixed values, so repeating it is safe.
+# POST is deliberately excluded: create_note is not idempotent, and blindly
+# retrying it on a lost response could create a duplicate note.
+_RETRYABLE_METHODS = frozenset({"GET", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 
 CONTACT_PROPERTIES = [
     "firstname",
@@ -57,9 +65,15 @@ class HubSpotClient:
         if not token:
             raise HubSpotError("HUBSPOT_TOKEN is not set")
         self._session = requests.Session()
-        self._session.headers.update(
-            {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        self._session.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        retry = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=_RETRYABLE_METHODS,
         )
+        adapter = HTTPAdapter(max_retries=retry)
+        self._session.mount("https://", adapter)
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         response = self._session.request(method, f"{BASE_URL}{path}", timeout=30, **kwargs)
@@ -67,18 +81,22 @@ class HubSpotClient:
         return response.json() if response.content else {}
 
     def _property_exists(self, name: str) -> bool:
-        response = self._session.get(
-            f"{BASE_URL}/crm/v3/properties/contacts/{name}", timeout=30
-        )
+        response = self._session.get(f"{BASE_URL}/crm/v3/properties/contacts/{name}", timeout=30)
         if response.status_code == 404:
             return False
         response.raise_for_status()
         return True
 
-    def search_contacts(self, query: str, limit: int = 10) -> list[dict]:
-        body = {"query": query, "properties": CONTACT_PROPERTIES, "limit": limit}
+    def search_contacts(
+        self, query: str, limit: int = 10, after: str | None = None
+    ) -> tuple[list[dict], str | None]:
+        """Return one page of matching contacts and the cursor for the next page (or None)."""
+        body: dict[str, Any] = {"query": query, "properties": CONTACT_PROPERTIES, "limit": limit}
+        if after:
+            body["after"] = after
         data = self._request("POST", "/crm/v3/objects/contacts/search", json=body)
-        return data.get("results", [])
+        next_after = data.get("paging", {}).get("next", {}).get("after")
+        return data.get("results", []), next_after
 
     def get_contact(self, contact_id: str) -> dict:
         params = {"properties": ",".join(CONTACT_PROPERTIES)}

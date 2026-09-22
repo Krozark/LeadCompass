@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 from leadcompass.config import (
@@ -56,43 +57,41 @@ st.divider()
 
 with st.form("business_profile_form"):
     name = st.text_input("Nom de l'entreprise", value=profile.name)
-    product_description = st.text_area(
-        "Description du produit/service", value=profile.product_description
-    )
+    product_description = st.text_area("Description du produit/service", value=profile.product_description)
     target_customer = st.text_area("Client cible", value=profile.target_customer)
     value_proposition = st.text_area("Proposition de valeur", value=profile.value_proposition)
     tone = st.text_input("Ton de communication", value=profile.tone)
 
     st.subheader("Grille de score de pertinence")
-    st.caption("Un critère par ligne, au format : Nom | Description | Poids")
-    criteria_text = st.text_area(
-        "Critères",
-        value="\n".join(
-            f"{c.name} | {c.description} | {c.weight}" for c in profile.scoring_criteria
-        ),
-        height=200,
-        label_visibility="collapsed",
+    criteria_df = pd.DataFrame(
+        [
+            {"name": c.name, "description": c.description, "weight": c.weight}
+            for c in profile.scoring_criteria
+        ],
+        columns=["name", "description", "weight"],
+    )
+    edited_criteria = st.data_editor(
+        criteria_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "name": st.column_config.TextColumn("Nom", required=True),
+            "description": st.column_config.TextColumn("Description", required=True),
+            "weight": st.column_config.NumberColumn(
+                "Poids", min_value=0.0, step=0.5, default=1.0, required=True
+            ),
+        },
     )
 
     submitted = st.form_submit_button("Enregistrer")
 
 if submitted:
-    criteria = []
-    skipped_lines = []
-    for line in criteria_text.strip().splitlines():
-        if not line.strip():
-            continue
-        parts = [p.strip() for p in line.split("|")]
-        weight = None
-        if len(parts) == 3:
-            try:
-                weight = float(parts[2].replace(",", "."))
-            except ValueError:
-                weight = None
-        if len(parts) == 3 and weight is not None:
-            criteria.append(ScoringCriterion(parts[0], parts[1], weight))
-        else:
-            skipped_lines.append(line)
+    criteria = [
+        ScoringCriterion(str(row["name"]).strip(), str(row["description"]).strip(), float(row["weight"]))
+        for _, row in edited_criteria.iterrows()
+        if str(row["name"]).strip() and pd.notna(row["weight"])
+    ]
 
     new_profile = BusinessProfile(
         name=name,
@@ -105,8 +104,3 @@ if submitted:
     save_business_profile(new_profile)
     st.session_state.pop("generated_profile", None)
     st.success("Profil enregistré.")
-    if skipped_lines:
-        st.warning(
-            "Lignes de critères ignorées (format attendu : Nom | Description | Poids) :\n"
-            + "\n".join(f"- {line}" for line in skipped_lines)
-        )

@@ -50,9 +50,7 @@ class ClaudeCLIBackend:
         ]
         return self._run(system, user, max_turns, timeout, extra_args)
 
-    def _run(
-        self, system: str, user: str, max_turns: int, timeout: int, extra_args: list[str]
-    ) -> str:
+    def _run(self, system: str, user: str, max_turns: int, timeout: int, extra_args: list[str]) -> str:
         prompt = f"{system}\n\n{user}"
         command = [
             self._cli_path,
@@ -65,9 +63,7 @@ class ClaudeCLIBackend:
             *extra_args,
         ]
         try:
-            result = subprocess.run(
-                command, capture_output=True, text=True, timeout=timeout, check=True
-            )
+            result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=True)
         except subprocess.CalledProcessError as exc:
             raise ClaudeCLIError(exc.stderr or str(exc)) from exc
         except subprocess.TimeoutExpired as exc:

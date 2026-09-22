@@ -19,6 +19,5 @@ def compare_drafts(
     backends: list[LLMBackend],
 ) -> dict[str, str]:
     return {
-        backend.name: generate_draft(contact_context, profile, draft_type, backend)
-        for backend in backends
+        backend.name: generate_draft(contact_context, profile, draft_type, backend) for backend in backends
     }

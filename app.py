@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from leadcompass.config import load_business_profile
+from leadcompass.contact_context import build_contact_context
 from leadcompass.hubspot_client import HubSpotClient, HubSpotError
 from leadcompass.llm.claude_cli import ClaudeCLIBackend
 from leadcompass.llm.glm import GLMBackend
@@ -17,8 +18,7 @@ st.title("🧭 LeadCompass")
 profile = load_business_profile()
 if not profile.is_configured:
     st.warning(
-        "Le profil entreprise n'est pas configuré. "
-        "Rends-toi sur la page Paramètres pour le renseigner."
+        "Le profil entreprise n'est pas configuré. Rends-toi sur la page Paramètres pour le renseigner."
     )
 
 claude = ClaudeCLIBackend()
@@ -30,8 +30,8 @@ def _get_hubspot_client() -> HubSpotClient:
 
 
 @st.cache_data(ttl=300)
-def _search_contacts(query: str) -> list[dict]:
-    return _get_hubspot_client().search_contacts(query)
+def _search_contacts_page(query: str, after: str | None) -> tuple[list[dict], str | None]:
+    return _get_hubspot_client().search_contacts(query, after=after)
 
 
 @st.cache_data(ttl=300)
@@ -46,23 +46,6 @@ except HubSpotError as exc:
     st.stop()
 
 
-def _contact_context(contact: dict, engagements: list[dict]) -> str:
-    props = contact.get("properties", {})
-    lines = [
-        f"Nom : {props.get('firstname', '')} {props.get('lastname', '')}",
-        f"Email : {props.get('email', '')}",
-        f"Entreprise : {props.get('company', '')}",
-        f"Poste : {props.get('jobtitle', '')}",
-        "",
-        "Historique des échanges :",
-    ]
-    for engagement in engagements:
-        eprops = engagement.get("properties", {})
-        body = eprops.get("hs_note_body") or eprops.get("hs_email_text") or ""
-        lines.append(f"- [{engagement.get('engagement_type')}] {body[:300]}")
-    return "\n".join(lines)
-
-
 def _save_note(contact_id: str, text: str) -> None:
     try:
         hubspot.create_note(contact_id, text)
@@ -74,10 +57,17 @@ def _save_note(contact_id: str, text: str) -> None:
 query = st.text_input("Rechercher un prospect (nom, email, entreprise)")
 contact = None
 if query:
-    results = _search_contacts(query)
+    if st.session_state.get("search_query") != query:
+        results, after = _search_contacts_page(query, None)
+        st.session_state["search_query"] = query
+        st.session_state["search_results"] = results
+        st.session_state["search_after"] = after
+
+    results = st.session_state["search_results"]
     if not results:
         st.info("Aucun prospect trouvé.")
     else:
+
         def _label(i: int) -> str:
             props = results[i]["properties"]
             return f"{props.get('firstname', '')} {props.get('lastname', '')} — {props.get('email', '')}"
@@ -85,12 +75,18 @@ if query:
         choice_idx = st.selectbox("Prospect", range(len(results)), format_func=_label)
         contact = results[choice_idx]
 
+        if st.session_state["search_after"] and st.button("Voir plus de résultats"):
+            more, after = _search_contacts_page(query, st.session_state["search_after"])
+            st.session_state["search_results"] = results + more
+            st.session_state["search_after"] = after
+            st.rerun()
+
 if not contact:
     st.stop()
 
 contact_id = contact["id"]
 engagements = _get_engagements(contact_id)
-context = _contact_context(contact, engagements)
+context = build_contact_context(contact, engagements)
 
 tab_summary, tab_score, tab_draft = st.tabs(["Résumé", "Score", "Rédaction"])
 
@@ -125,9 +121,7 @@ with tab_score:
                 st.error(f"Échec de l'enregistrement du score : {exc}")
 
 with tab_draft:
-    draft_type = st.selectbox(
-        "Type d'email", list(DRAFT_TYPES.keys()), format_func=lambda k: DRAFT_TYPES[k]
-    )
+    draft_type = st.selectbox("Type d'email", list(DRAFT_TYPES.keys()), format_func=lambda k: DRAFT_TYPES[k])
     compare = st.checkbox("Comparer avec GLM")
     drafts_key = f"drafts_{contact_id}_{draft_type}_{compare}"
 
@@ -145,7 +139,7 @@ with tab_draft:
     if drafts_key in st.session_state:
         drafts = st.session_state[drafts_key]
         columns = st.columns(len(drafts))
-        for col, (backend_name, text) in zip(columns, drafts.items()):
+        for col, (backend_name, text) in zip(columns, drafts.items(), strict=True):
             with col:
                 st.subheader(backend_name)
                 area_key = f"draft_text_{contact_id}_{draft_type}_{backend_name}"

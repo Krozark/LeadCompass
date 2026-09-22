@@ -73,9 +73,7 @@ class BusinessProfile:
             value_proposition=data.get("value_proposition", ""),
             tone=data.get("tone", "professionnel"),
             scoring_criteria=[
-                ScoringCriterion(
-                    c.get("name", ""), c.get("description", ""), c.get("weight", 1.0)
-                )
+                ScoringCriterion(c.get("name", ""), c.get("description", ""), c.get("weight", 1.0))
                 for c in data.get("scoring_criteria", [])
             ],
         )

@@ -29,7 +29,7 @@ Le cœur de métier n'est pas codé en dur : un **profil entreprise** (`config/b
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt  # ou requirements-dev.txt pour contribuer (ajoute ruff)
 
 cp .env.example .env
 # renseignez HUBSPOT_TOKEN et ZAI_API_KEY dans .env
@@ -56,24 +56,38 @@ Cette exploration tourne en lecture seule et confinée : le CLI est lancé avec 
 
 ```
 leadcompass/
-├── config.py           # chargement du .env et du profil entreprise
-├── hubspot_client.py    # lecture/écriture HubSpot (contacts, engagements, notes, propriétés)
+├── config.py                    # chargement du .env et du profil entreprise
+├── contact_context.py            # mise en forme du contexte prospect (fiche + historique)
+├── hubspot_client.py              # lecture/écriture HubSpot (contacts, engagements, notes, propriétés)
 ├── llm/
-│   ├── base.py          # interface commune aux backends (generate(system, user) -> str)
-│   ├── claude_cli.py     # backend Claude via le CLI en sous-processus
-│   └── glm.py            # backend GLM via le SDK anthropic pointé sur l'endpoint Z.ai
+│   ├── base.py                    # interface commune aux backends (generate(system, user) -> str)
+│   ├── claude_cli.py               # backend Claude via le CLI en sous-processus
+│   └── glm.py                      # backend GLM via le SDK anthropic pointé sur l'endpoint Z.ai
 └── tasks/
-    ├── prompts.py         # construction des prompts à partir du profil entreprise
-    ├── research.py        # résumé de prospect
-    ├── scoring.py          # score de pertinence
-    └── drafting.py          # rédaction d'emails, avec comparaison multi-modèles
+    ├── prompts.py                   # construction des prompts à partir du profil entreprise
+    ├── research.py                  # résumé de prospect
+    ├── scoring.py                    # score de pertinence
+    ├── drafting.py                    # rédaction d'emails, avec comparaison multi-modèles
+    └── profile_generation.py          # génération du profil entreprise depuis des dossiers
+tests/                                  # tests unitaires (unittest, sans dépendance réseau)
 ```
+
+## Développement
+
+```bash
+pip install -r requirements-dev.txt
+
+python -m unittest discover -s tests   # tests unitaires
+ruff check .                            # lint
+ruff format .                           # formatage
+```
+
+Le CI (GitHub Actions) fait tourner ces trois commandes à chaque push/PR.
 
 ## Limitations connues
 
-- L'intégration HubSpot (lecture des engagements, création de notes) s'appuie sur les endpoints documentés de l'API v3/v4 mais n'a pas encore été testée contre un vrai compte — à valider/ajuster à la première utilisation, notamment si votre compte utilise des types d'association personnalisés.
+- L'intégration HubSpot (lecture des engagements, création de notes) s'appuie sur les endpoints documentés de l'API v3/v4 ; les tests unitaires mockent les appels HTTP mais n'ont pas pu être vérifiés contre un vrai compte — à valider à la première utilisation, notamment si votre compte utilise des types d'association personnalisés.
 - Le backend Claude ne dispose de recherche web que si le CLI y a accès sans prompt d'autorisation interactif ; vérifiez votre configuration de permissions (`claude config` / réglages de permissions du CLI) si les résumés semblent se limiter aux seules données HubSpot.
-- Pas de suite de tests pour l'instant.
 
 ## Licence
 

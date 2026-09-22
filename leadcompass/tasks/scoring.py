@@ -43,9 +43,7 @@ def _extract_json(text: str) -> dict:
     return json.loads(match.group(0))
 
 
-def generate_score(
-    contact_context: str, profile: BusinessProfile, backend: LLMBackend
-) -> ScoreResult:
+def generate_score(contact_context: str, profile: BusinessProfile, backend: LLMBackend) -> ScoreResult:
     system = scoring_system_prompt(profile)
     raw = backend.generate(system, contact_context)
     payload = _extract_json(raw)
@@ -53,13 +51,12 @@ def generate_score(
 
     if len(scores) != len(profile.scoring_criteria):
         raise ValueError(
-            f"Le modèle a renvoyé {len(scores)} critères, "
-            f"{len(profile.scoring_criteria)} attendus."
+            f"Le modèle a renvoyé {len(scores)} critères, {len(profile.scoring_criteria)} attendus."
         )
 
     total = sum(
         item.get("score", 0) * criterion.weight
-        for item, criterion in zip(scores, profile.scoring_criteria)
+        for item, criterion in zip(scores, profile.scoring_criteria, strict=True)
     )
     max_total = profile.max_score()
 
