@@ -63,10 +63,17 @@ class HubSpotClient:
 
     def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         response = self._session.request(method, f"{BASE_URL}{path}", timeout=30, **kwargs)
-        if response.status_code == 404:
-            return {}
         response.raise_for_status()
         return response.json() if response.content else {}
+
+    def _property_exists(self, name: str) -> bool:
+        response = self._session.get(
+            f"{BASE_URL}/crm/v3/properties/contacts/{name}", timeout=30
+        )
+        if response.status_code == 404:
+            return False
+        response.raise_for_status()
+        return True
 
     def search_contacts(self, query: str, limit: int = 10) -> list[dict]:
         body = {"query": query, "properties": CONTACT_PROPERTIES, "limit": limit}
@@ -93,13 +100,12 @@ class HubSpotClient:
                     engagement["engagement_type"] = object_type
                     engagements.append(engagement)
 
-        engagements.sort(key=lambda e: e.get("properties", {}).get("hs_timestamp", ""))
+        engagements.sort(key=lambda e: e.get("properties", {}).get("hs_timestamp") or "")
         return engagements
 
     def ensure_custom_properties(self) -> None:
         for prop in SCORE_PROPERTIES:
-            existing = self._request("GET", f"/crm/v3/properties/contacts/{prop['name']}")
-            if not existing:
+            if not self._property_exists(prop["name"]):
                 self._request("POST", "/crm/v3/properties/contacts", json=prop)
 
     def update_score(self, contact_id: str, score: float, classification: str) -> None:

@@ -42,10 +42,21 @@ with st.form("business_profile_form"):
 
 if submitted:
     criteria = []
+    skipped_lines = []
     for line in criteria_text.strip().splitlines():
+        if not line.strip():
+            continue
         parts = [p.strip() for p in line.split("|")]
+        weight = None
         if len(parts) == 3:
-            criteria.append(ScoringCriterion(parts[0], parts[1], float(parts[2])))
+            try:
+                weight = float(parts[2].replace(",", "."))
+            except ValueError:
+                weight = None
+        if len(parts) == 3 and weight is not None:
+            criteria.append(ScoringCriterion(parts[0], parts[1], weight))
+        else:
+            skipped_lines.append(line)
 
     new_profile = BusinessProfile(
         name=name,
@@ -57,3 +68,8 @@ if submitted:
     )
     save_business_profile(new_profile)
     st.success("Profil enregistré.")
+    if skipped_lines:
+        st.warning(
+            "Lignes de critères ignorées (format attendu : Nom | Description | Poids) :\n"
+            + "\n".join(f"- {line}" for line in skipped_lines)
+        )

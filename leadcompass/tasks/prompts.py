@@ -29,7 +29,8 @@ def scoring_system_prompt(profile: BusinessProfile) -> str:
         f"Grille de critères, note chacun de 0 à 5 :\n{criteria_text}\n\n"
         "Réponds UNIQUEMENT avec un objet JSON de la forme "
         '{"criteria_scores": [{"name": "...", "score": 0, "justification": "..."}]}, '
-        "sans texte autour, sans bloc markdown."
+        "avec un élément par critère, EXACTEMENT dans le même ordre que la liste "
+        "ci-dessus, sans texte autour, sans bloc markdown."
     )
 
 

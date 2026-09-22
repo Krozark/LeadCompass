@@ -23,8 +23,24 @@ if not profile.is_configured:
 
 claude = ClaudeCLIBackend()
 
+
+@st.cache_resource
+def _get_hubspot_client() -> HubSpotClient:
+    return HubSpotClient()
+
+
+@st.cache_data(ttl=300)
+def _search_contacts(query: str) -> list[dict]:
+    return _get_hubspot_client().search_contacts(query)
+
+
+@st.cache_data(ttl=300)
+def _get_engagements(contact_id: str) -> list[dict]:
+    return _get_hubspot_client().get_engagements(contact_id)
+
+
 try:
-    hubspot = HubSpotClient()
+    hubspot = _get_hubspot_client()
 except HubSpotError as exc:
     st.error(f"Configuration HubSpot manquante : {exc}")
     st.stop()
@@ -42,31 +58,38 @@ def _contact_context(contact: dict, engagements: list[dict]) -> str:
     ]
     for engagement in engagements:
         eprops = engagement.get("properties", {})
-        body = eprops.get("hs_note_body") or eprops.get("hs_email_text", "")
+        body = eprops.get("hs_note_body") or eprops.get("hs_email_text") or ""
         lines.append(f"- [{engagement.get('engagement_type')}] {body[:300]}")
     return "\n".join(lines)
+
+
+def _save_note(contact_id: str, text: str) -> None:
+    try:
+        hubspot.create_note(contact_id, text)
+        st.success("Enregistré dans HubSpot.")
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
+        st.error(f"Échec de l'enregistrement dans HubSpot : {exc}")
 
 
 query = st.text_input("Rechercher un prospect (nom, email, entreprise)")
 contact = None
 if query:
-    results = hubspot.search_contacts(query)
+    results = _search_contacts(query)
     if not results:
         st.info("Aucun prospect trouvé.")
     else:
-        options = {
-            f"{r['properties'].get('firstname', '')} {r['properties'].get('lastname', '')} "
-            f"— {r['properties'].get('email', '')}": r
-            for r in results
-        }
-        choice = st.selectbox("Prospect", list(options.keys()))
-        contact = options[choice]
+        def _label(i: int) -> str:
+            props = results[i]["properties"]
+            return f"{props.get('firstname', '')} {props.get('lastname', '')} — {props.get('email', '')}"
+
+        choice_idx = st.selectbox("Prospect", range(len(results)), format_func=_label)
+        contact = results[choice_idx]
 
 if not contact:
     st.stop()
 
 contact_id = contact["id"]
-engagements = hubspot.get_engagements(contact_id)
+engagements = _get_engagements(contact_id)
 context = _contact_context(contact, engagements)
 
 tab_summary, tab_score, tab_draft = st.tabs(["Résumé", "Score", "Rédaction"])
@@ -80,8 +103,7 @@ with tab_summary:
     if summary_key in st.session_state:
         st.write(st.session_state[summary_key])
         if st.button("Enregistrer dans HubSpot (note)", key=f"save_summary_{contact_id}"):
-            hubspot.create_note(contact_id, st.session_state[summary_key])
-            st.success("Résumé enregistré dans HubSpot.")
+            _save_note(contact_id, st.session_state[summary_key])
 
 with tab_score:
     score_key = f"score_{contact_id}"
@@ -95,9 +117,12 @@ with tab_score:
         for detail in result.details:
             st.write(f"- {detail.get('name')} : {detail.get('score')}/5 — {detail.get('justification')}")
         if st.button("Enregistrer le score dans HubSpot", key=f"save_score_{contact_id}"):
-            hubspot.ensure_custom_properties()
-            hubspot.update_score(contact_id, result.total, result.classification)
-            st.success("Score enregistré dans HubSpot.")
+            try:
+                hubspot.ensure_custom_properties()
+                hubspot.update_score(contact_id, result.total, result.classification)
+                st.success("Score enregistré dans HubSpot.")
+            except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
+                st.error(f"Échec de l'enregistrement du score : {exc}")
 
 with tab_draft:
     draft_type = st.selectbox(
@@ -126,5 +151,4 @@ with tab_draft:
                 area_key = f"draft_text_{contact_id}_{draft_type}_{backend_name}"
                 st.text_area("", text, height=300, key=area_key)
                 if st.button("Enregistrer cette version", key=f"save_draft_{area_key}"):
-                    hubspot.create_note(contact_id, st.session_state[area_key])
-                    st.success("Email enregistré dans HubSpot.")
+                    _save_note(contact_id, st.session_state[area_key])

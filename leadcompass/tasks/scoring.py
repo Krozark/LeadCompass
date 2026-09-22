@@ -12,6 +12,10 @@ _HOT_THRESHOLD = 70
 _WARM_THRESHOLD = 40
 
 
+def _percentage(total: float, max_total: float) -> float:
+    return round(100 * total / max_total, 1) if max_total else 0.0
+
+
 @dataclass
 class ScoreResult:
     total: float
@@ -21,7 +25,7 @@ class ScoreResult:
 
     @property
     def percentage(self) -> float:
-        return round(100 * self.total / self.max_total, 1) if self.max_total else 0.0
+        return _percentage(self.total, self.max_total)
 
 
 def _classify(percentage: float) -> str:
@@ -47,14 +51,21 @@ def generate_score(
     payload = _extract_json(raw)
     scores = payload.get("criteria_scores", [])
 
-    weights = {c.name: c.weight for c in profile.scoring_criteria}
-    total = sum(item.get("score", 0) * weights.get(item.get("name", ""), 1) for item in scores)
+    if len(scores) != len(profile.scoring_criteria):
+        raise ValueError(
+            f"Le modèle a renvoyé {len(scores)} critères, "
+            f"{len(profile.scoring_criteria)} attendus."
+        )
+
+    total = sum(
+        item.get("score", 0) * criterion.weight
+        for item, criterion in zip(scores, profile.scoring_criteria)
+    )
     max_total = profile.max_score()
-    percentage = round(100 * total / max_total, 1) if max_total else 0.0
 
     return ScoreResult(
         total=total,
         max_total=max_total,
-        classification=_classify(percentage),
+        classification=_classify(_percentage(total, max_total)),
         details=scores,
     )
