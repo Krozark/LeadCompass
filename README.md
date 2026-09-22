@@ -2,7 +2,7 @@
 
 Assistant d'aide à la décision commerciale pour la prospection : recherche et résumé de prospect, score de pertinence, et rédaction d'emails (premier contact / relance / réponse), branché sur HubSpot.
 
-Le cœur de métier n'est pas codé en dur : un **profil entreprise** (`config/business_profile.yaml`, non versionné) décrit votre produit, votre client cible et votre grille de score. LeadCompass s'adapte à n'importe quelle activité à partir de ce fichier.
+Le cœur de métier n'est pas codé en dur : un **profil entreprise** (`config/business_profile.yaml`, non versionné) décrit votre produit, votre client cible et votre grille de score. LeadCompass s'adapte à n'importe quelle activité à partir de ce fichier — et peut le générer ou le mettre à jour lui-même à partir de vos documents (voir ci-dessous).
 
 ## Fonctionnement
 
@@ -45,6 +45,12 @@ streamlit run app.py
 ```
 
 Rendez-vous d'abord sur la page **Paramètres** pour renseigner le profil de votre entreprise (produit, client cible, grille de score) avant d'utiliser l'outil sur un vrai prospect.
+
+### Génération automatique du profil depuis vos documents
+
+Plutôt que de remplir le formulaire à la main, la page Paramètres permet de donner un ou plusieurs chemins de dossiers (documentation produit, présentations, site exporté...) : Claude les explore et propose une description de l'entreprise et une grille de score adaptées, que vous relisez et ajustez avant d'enregistrer. Relancer l'analyse plus tard affine le profil existant plutôt que de repartir de zéro.
+
+Cette exploration tourne en lecture seule et confinée : le CLI est lancé avec `--restricted` (pas de Bash, pas d'exécution de code, pas de récupération web) et `--allowedTools Read Glob Grep` limité aux dossiers passés en `--add-dir` — Claude ne peut rien modifier ni lire en dehors des chemins fournis.
 
 ## Architecture
 

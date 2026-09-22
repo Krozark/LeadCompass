@@ -51,6 +51,35 @@ class BusinessProfile:
     def max_score(self) -> float:
         return sum(c.weight * 5 for c in self.scoring_criteria) or 1.0
 
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "product_description": self.product_description,
+            "target_customer": self.target_customer,
+            "value_proposition": self.value_proposition,
+            "tone": self.tone,
+            "scoring_criteria": [
+                {"name": c.name, "description": c.description, "weight": c.weight}
+                for c in self.scoring_criteria
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> BusinessProfile:
+        return cls(
+            name=data.get("name", ""),
+            product_description=data.get("product_description", ""),
+            target_customer=data.get("target_customer", ""),
+            value_proposition=data.get("value_proposition", ""),
+            tone=data.get("tone", "professionnel"),
+            scoring_criteria=[
+                ScoringCriterion(
+                    c.get("name", ""), c.get("description", ""), c.get("weight", 1.0)
+                )
+                for c in data.get("scoring_criteria", [])
+            ],
+        )
+
 
 def load_business_profile() -> BusinessProfile:
     path = PROFILE_PATH if PROFILE_PATH.exists() else PROFILE_EXAMPLE_PATH
@@ -60,31 +89,18 @@ def load_business_profile() -> BusinessProfile:
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
-    company = data.get("company", {})
-    criteria = [ScoringCriterion(**criterion) for criterion in data.get("scoring_criteria", [])]
-    return BusinessProfile(
-        name=company.get("name", ""),
-        product_description=company.get("product_description", ""),
-        target_customer=company.get("target_customer", ""),
-        value_proposition=company.get("value_proposition", ""),
-        tone=company.get("tone", "professionnel"),
-        scoring_criteria=criteria,
-    )
+    flat = {**data.get("company", {}), "scoring_criteria": data.get("scoring_criteria", [])}
+    return BusinessProfile.from_dict(flat)
 
 
 def save_business_profile(profile: BusinessProfile) -> None:
+    payload = profile.to_dict()
     data = {
         "company": {
-            "name": profile.name,
-            "product_description": profile.product_description,
-            "target_customer": profile.target_customer,
-            "value_proposition": profile.value_proposition,
-            "tone": profile.tone,
+            key: payload[key]
+            for key in ("name", "product_description", "target_customer", "value_proposition", "tone")
         },
-        "scoring_criteria": [
-            {"name": c.name, "description": c.description, "weight": c.weight}
-            for c in profile.scoring_criteria
-        ],
+        "scoring_criteria": payload["scoring_criteria"],
     }
     CONFIG_DIR.mkdir(exist_ok=True)
     with open(PROFILE_PATH, "w", encoding="utf-8") as f:

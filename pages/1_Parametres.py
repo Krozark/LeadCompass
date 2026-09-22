@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from leadcompass.config import (
@@ -8,6 +10,8 @@ from leadcompass.config import (
     load_business_profile,
     save_business_profile,
 )
+from leadcompass.llm.claude_cli import ClaudeCLIBackend, ClaudeCLIError
+from leadcompass.tasks.profile_generation import generate_profile_from_folders
 
 st.set_page_config(page_title="LeadCompass — Paramètres", page_icon="⚙️")
 st.title("⚙️ Paramètres — Profil entreprise")
@@ -16,7 +20,39 @@ st.caption(
     "et injectées dans chaque tâche IA pour que les réponses soient pertinentes."
 )
 
-profile = load_business_profile()
+saved_profile = load_business_profile()
+
+st.subheader("Génération automatique depuis des dossiers")
+st.caption(
+    "Donne un ou plusieurs dossiers contenant des documents sur l'entreprise "
+    "(présentation, documentation produit, site exporté...). Claude les explore "
+    "en lecture seule — aucun fichier n'est modifié — et propose une mise à jour "
+    "du profil ci-dessous, à valider avant d'enregistrer."
+)
+folders_text = st.text_area("Un chemin de dossier par ligne", height=80, key="folders_input")
+
+if st.button("Analyser les dossiers"):
+    directories = [line.strip() for line in folders_text.strip().splitlines() if line.strip()]
+    invalid = [d for d in directories if not Path(d).expanduser().is_dir()]
+
+    if not directories:
+        st.warning("Indique au moins un dossier.")
+    elif invalid:
+        st.error("Dossier(s) introuvable(s) : " + ", ".join(invalid))
+    else:
+        resolved = [str(Path(d).expanduser().resolve()) for d in directories]
+        try:
+            with st.spinner("Analyse en cours (peut prendre plusieurs minutes)..."):
+                st.session_state["generated_profile"] = generate_profile_from_folders(
+                    resolved, saved_profile, ClaudeCLIBackend()
+                )
+            st.success("Profil généré ci-dessous — vérifie-le puis enregistre-le.")
+        except ClaudeCLIError as exc:
+            st.error(f"Échec de l'analyse : {exc}")
+
+profile = st.session_state.get("generated_profile", saved_profile)
+
+st.divider()
 
 with st.form("business_profile_form"):
     name = st.text_input("Nom de l'entreprise", value=profile.name)
@@ -67,6 +103,7 @@ if submitted:
         scoring_criteria=criteria,
     )
     save_business_profile(new_profile)
+    st.session_state.pop("generated_profile", None)
     st.success("Profil enregistré.")
     if skipped_lines:
         st.warning(
