@@ -1,0 +1,32 @@
+# Copy this file to business_profile.yaml (git-ignored) and fill it in,
+# or use the "Paramètres" page in the app once it's running.
+company:
+  name: "Your Company"
+  product_description: >
+    Describe your product or service: what it does, who it's for, what
+    problem it solves.
+  target_customer: >
+    Describe your ideal customer profile: type of business, size, role of
+    the person you usually talk to.
+  value_proposition: >
+    What makes your offer different from the alternatives.
+  tone: "professionnel et direct"
+
+# Each criterion is scored 0-5 by the model; the weighted sum determines the
+# relevance classification (chaud / tiède / froid).
+scoring_criteria:
+  - name: "Adéquation sectorielle"
+    description: "Le type d'entreprise/de contact correspond-il à une cible pertinente ?"
+    weight: 1
+  - name: "Portée / taille"
+    description: "Taille de l'audience, de la communauté ou de la structure du prospect."
+    weight: 1
+  - name: "Engagement démontré"
+    description: "Niveau d'interaction dans l'historique : a répondu, pose des questions précises, plusieurs échanges."
+    weight: 1
+  - name: "Signal de budget / capacité"
+    description: "Indices de capacité d'achat ou de partenariat (structure professionnelle, mentions de budget)."
+    weight: 1
+  - name: "Timing / urgence"
+    description: "Besoin ou projet exprimé maintenant, plutôt qu'un contact exploratoire sans échéance."
+    weight: 1
