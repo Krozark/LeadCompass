@@ -53,24 +53,26 @@ llm = get_backend(llm_name, max_turns=15, timeout=600) if llm_name in backends e
 if llm is None:
     st.caption("Aucun modèle IA détecté — configure-en un sur la page Paramètres.")
 
-if st.button(
-    "Lancer la recherche",
-    icon=":material/travel_explore:",
-    disabled=llm is None or not guide.strip(),
-):
-    try:
-        with st.spinner("Recherche sur le web (peut prendre plusieurs minutes)..."):
-            for key in list(st.session_state):
-                if key.startswith("discovery_added_"):
-                    del st.session_state[key]
-            st.session_state["discovery"] = {
-                "guide": guide.strip(),
-                "results": discover_prospects(guide, profile, llm, int(count)),
-            }
-    except ValueError as exc:
-        st.error(f"Réponse du modèle inexploitable : {exc}")
-    except ClaudeCLIError as exc:
-        st.error(f"Échec de la recherche : {exc}")
+# Disabled only on missing backend: gating on `guide` here would keep the button
+# greyed while the text is typed, because Streamlit commits a text area's value
+# only when it loses focus — and a disabled button swallows that first click.
+if st.button("Lancer la recherche", icon=":material/travel_explore:", disabled=llm is None):
+    if not guide.strip():
+        st.warning("Décris d'abord qui tu cherches pour guider la recherche.")
+    else:
+        try:
+            with st.spinner("Recherche sur le web (peut prendre plusieurs minutes)..."):
+                for key in list(st.session_state):
+                    if key.startswith("discovery_added_"):
+                        del st.session_state[key]
+                st.session_state["discovery"] = {
+                    "guide": guide.strip(),
+                    "results": discover_prospects(guide, profile, llm, int(count)),
+                }
+        except ValueError as exc:
+            st.error(f"Réponse du modèle inexploitable : {exc}")
+        except ClaudeCLIError as exc:
+            st.error(f"Échec de la recherche : {exc}")
 
 data = st.session_state.get("discovery")
 if data:
