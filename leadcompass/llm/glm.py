@@ -16,11 +16,11 @@ class GLMBackend:
         self._model = model
 
     def generate(self, system: str, user: str) -> str:
-        # GLM flash models are thinking models: the reasoning trace precedes the
-        # visible reply, so only text blocks are returned to the caller.
+        # GLM flash is a thinking model: its internal reasoning trace can consume
+        # thousands of tokens before the visible reply. 16 000 gives enough headroom.
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=4096,
+            max_tokens=16000,
             system=system,
             messages=[{"role": "user", "content": user}],
         )

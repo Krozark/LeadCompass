@@ -26,11 +26,20 @@ CONTACT_PROPERTIES = [
     "phone",
     "leadcompass_score",
     "leadcompass_classification",
+    "leadcompass_prospect_type",
 ]
 
 ENGAGEMENT_TYPES: dict[str, list[str]] = {
     "notes": ["hs_note_body", "hs_timestamp"],
     "emails": ["hs_email_subject", "hs_email_text", "hs_email_direction", "hs_timestamp"],
+}
+
+PROSPECT_TYPE_PROPERTY = {
+    "name": "leadcompass_prospect_type",
+    "label": "LeadCompass - Type de prospect",
+    "type": "string",
+    "fieldType": "text",
+    "groupName": "contactinformation",
 }
 
 SCORE_PROPERTIES = [
@@ -135,18 +144,43 @@ class HubSpotClient:
         return engagements
 
     def ensure_custom_properties(self) -> None:
-        for prop in SCORE_PROPERTIES:
+        for prop in [*SCORE_PROPERTIES, PROSPECT_TYPE_PROPERTY]:
             if not self._property_exists(prop["name"]):
                 self._request("POST", "/crm/v3/properties/contacts", json=prop)
 
     def update_score(self, contact_id: str, score: float, classification: str) -> None:
-        body = {
-            "properties": {
-                "leadcompass_score": score,
-                "leadcompass_classification": classification,
-            }
+        self._request(
+            "PATCH",
+            f"/crm/v3/objects/contacts/{contact_id}",
+            json={"properties": {"leadcompass_score": score, "leadcompass_classification": classification}},
+        )
+
+    def set_prospect_type(self, contact_id: str, type_value: str) -> None:
+        self._request(
+            "PATCH",
+            f"/crm/v3/objects/contacts/{contact_id}",
+            json={"properties": {"leadcompass_prospect_type": type_value}},
+        )
+
+    def filter_contacts_by_type(
+        self, type_value: str, limit: int = 20, after: str | None = None
+    ) -> tuple[list[dict], str | None]:
+        body: dict[str, Any] = {
+            "filterGroups": [
+                {
+                    "filters": [
+                        {"propertyName": "leadcompass_prospect_type", "operator": "EQ", "value": type_value}
+                    ]
+                }
+            ],
+            "properties": CONTACT_PROPERTIES,
+            "limit": limit,
         }
-        self._request("PATCH", f"/crm/v3/objects/contacts/{contact_id}", json=body)
+        if after:
+            body["after"] = after
+        data = self._request("POST", "/crm/v3/objects/contacts/search", json=body)
+        next_after = data.get("paging", {}).get("next", {}).get("after")
+        return data.get("results", []), next_after
 
     def create_note(self, contact_id: str, body_text: str) -> None:
         note = self._request(

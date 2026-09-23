@@ -63,6 +63,18 @@ with st.form("business_profile_form"):
     value_proposition = st.text_area("Proposition de valeur", value=profile.value_proposition)
     tone = st.text_input("Ton de communication", value=profile.tone)
 
+    st.subheader("Types de prospect")
+    st.caption(
+        "Liste des catégories disponibles pour qualifier vos prospects (ex. : B2C, Festival, Structure…)."
+    )
+    types_df = pd.DataFrame({"type": profile.prospect_types}, columns=["type"])
+    edited_types = st.data_editor(
+        types_df,
+        num_rows="dynamic",
+        hide_index=True,
+        column_config={"type": st.column_config.TextColumn("Type", required=True)},
+    )
+
     st.subheader("Grille de score de pertinence")
     criteria_df = pd.DataFrame(
         [
@@ -87,6 +99,9 @@ with st.form("business_profile_form"):
     submitted = st.form_submit_button("Enregistrer", icon=":material/save:")
 
 if submitted:
+    prospect_types = [
+        str(row["type"]).strip() for _, row in edited_types.iterrows() if str(row["type"]).strip()
+    ]
     criteria = [
         ScoringCriterion(str(row["name"]).strip(), str(row["description"]).strip(), float(row["weight"]))
         for _, row in edited_criteria.iterrows()
@@ -100,6 +115,7 @@ if submitted:
         value_proposition=value_proposition,
         tone=tone,
         scoring_criteria=criteria,
+        prospect_types=prospect_types,
     )
     save_business_profile(new_profile)
     st.session_state.pop("generated_profile", None)

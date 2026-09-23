@@ -34,6 +34,7 @@ class BusinessProfile:
     value_proposition: str = ""
     tone: str = "professionnel"
     scoring_criteria: list[ScoringCriterion] = field(default_factory=list)
+    prospect_types: list[str] = field(default_factory=list)
 
     @property
     def is_configured(self) -> bool:
@@ -62,6 +63,7 @@ class BusinessProfile:
                 {"name": c.name, "description": c.description, "weight": c.weight}
                 for c in self.scoring_criteria
             ],
+            "prospect_types": self.prospect_types,
         }
 
     @classmethod
@@ -76,6 +78,7 @@ class BusinessProfile:
                 ScoringCriterion(c.get("name", ""), c.get("description", ""), c.get("weight", 1.0))
                 for c in data.get("scoring_criteria", [])
             ],
+            prospect_types=data.get("prospect_types", []),
         )
 
 
@@ -87,7 +90,11 @@ def load_business_profile() -> BusinessProfile:
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
 
-    flat = {**data.get("company", {}), "scoring_criteria": data.get("scoring_criteria", [])}
+    flat = {
+        **data.get("company", {}),
+        "scoring_criteria": data.get("scoring_criteria", []),
+        "prospect_types": data.get("prospect_types", []),
+    }
     return BusinessProfile.from_dict(flat)
 
 
@@ -99,6 +106,7 @@ def save_business_profile(profile: BusinessProfile) -> None:
             for key in ("name", "product_description", "target_customer", "value_proposition", "tone")
         },
         "scoring_criteria": payload["scoring_criteria"],
+        "prospect_types": payload["prospect_types"],
     }
     CONFIG_DIR.mkdir(exist_ok=True)
     with open(PROFILE_PATH, "w", encoding="utf-8") as f:

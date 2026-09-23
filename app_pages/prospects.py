@@ -43,6 +43,11 @@ def _search_contacts_page(query: str, after: str | None) -> tuple[list[dict], st
 
 
 @st.cache_data(ttl=300)
+def _filter_contacts_page(type_value: str, after: str | None) -> tuple[list[dict], str | None]:
+    return _get_hubspot_client().filter_contacts_by_type(type_value, after=after)
+
+
+@st.cache_data(ttl=300)
 def _get_engagements(contact_id: str) -> list[dict]:
     return _get_hubspot_client().get_engagements(contact_id)
 
@@ -125,6 +130,7 @@ def _edit_exchange_dialog(eng: dict, eng_type: str) -> None:
 st.session_state.setdefault("search_query", "")
 st.session_state.setdefault("search_results", [])
 st.session_state.setdefault("search_after", None)
+st.session_state.setdefault("type_filter", "")
 
 # ── Layout: prospect list (left) + detail panel (right) ──────────────────────
 col_list, col_detail = st.columns([1, 2])
@@ -145,11 +151,30 @@ with col_list:
         st.session_state["search_results"] = []
         st.session_state["search_after"] = None
 
+    if profile.prospect_types:
+        type_options = ["Tous les types", *profile.prospect_types]
+        current_filter = st.session_state["type_filter"]
+        selected_label = st.selectbox(
+            "Filtrer par type",
+            type_options,
+            index=type_options.index(current_filter) if current_filter in type_options else 0,
+            label_visibility="collapsed",
+        )
+        new_filter = "" if selected_label == "Tous les types" else selected_label
+        if new_filter != st.session_state["type_filter"]:
+            st.session_state["type_filter"] = new_filter
+            st.session_state["search_results"] = []
+            st.session_state["search_after"] = None
+            st.rerun()
+
     # Load first page when results list is empty
     if not st.session_state["search_results"]:
         active_query = st.session_state["search_query"]
+        active_type = st.session_state["type_filter"]
         if active_query:
             results, after = _search_contacts_page(active_query, None)
+        elif active_type:
+            results, after = _filter_contacts_page(active_type, None)
         else:
             results, after = _list_contacts_page(None)
         st.session_state["search_results"] = results
@@ -176,10 +201,14 @@ with col_list:
 
     if st.session_state["search_after"] and st.button("Voir plus", icon=":material/expand_more:"):
         active_query = st.session_state["search_query"]
+        active_type = st.session_state["type_filter"]
+        cursor = st.session_state["search_after"]
         if active_query:
-            more, after = _search_contacts_page(active_query, st.session_state["search_after"])
+            more, after = _search_contacts_page(active_query, cursor)
+        elif active_type:
+            more, after = _filter_contacts_page(active_type, cursor)
         else:
-            more, after = _list_contacts_page(st.session_state["search_after"])
+            more, after = _list_contacts_page(cursor)
         st.session_state["search_results"] = results + more
         st.session_state["search_after"] = after
         st.rerun()
@@ -189,6 +218,7 @@ contact = results[choice_idx]
 # ── Detail panel ──────────────────────────────────────────────────────────────
 with col_detail:
     props = contact["properties"]
+    contact_id = contact["id"]
     name = f"{props.get('firstname', '')} {props.get('lastname', '')}".strip() or "—"
     st.subheader(name)
 
@@ -198,7 +228,30 @@ with col_detail:
         info_cols[1].markdown(f"**Entreprise**  \n{props.get('company') or '—'}")
         info_cols[2].markdown(f"**Poste**  \n{props.get('jobtitle') or '—'}")
 
-    contact_id = contact["id"]
+    if profile.prospect_types:
+        type_key = f"prospect_type_select_{contact_id}"
+        current_type = props.get("leadcompass_prospect_type") or ""
+        type_options = ["", *profile.prospect_types]
+
+        def _on_type_change(cid: str = contact_id) -> None:
+            new_val = st.session_state[type_key]
+            try:
+                hubspot.set_prospect_type(cid, new_val)
+                _list_contacts_page.clear()
+                _search_contacts_page.clear()
+                _filter_contacts_page.clear()
+            except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
+                st.error(f"Échec de l'enregistrement du type : {exc}")
+
+        st.selectbox(
+            "Type de prospect",
+            type_options,
+            index=type_options.index(current_type) if current_type in type_options else 0,
+            key=type_key,
+            on_change=_on_type_change,
+            format_func=lambda v: v or "— Choisir un type —",
+        )
+
     engagements = _get_engagements(contact_id)
     context = build_contact_context(contact, engagements)
 
