@@ -5,7 +5,7 @@ from anthropic import Anthropic
 from leadcompass.config import ZAI_API_KEY
 
 ZAI_BASE_URL = "https://api.z.ai/api/anthropic"
-GLM_MODEL = "glm-5.3"
+GLM_MODEL = "glm-5.3-flash"
 
 
 class GLMBackend:
@@ -16,11 +16,11 @@ class GLMBackend:
         self._model = model
 
     def generate(self, system: str, user: str) -> str:
-        # GLM-5.3 is a thinking model: its reasoning trace consumes tokens before
-        # the visible reply, so max_tokens must be large enough for both.
+        # GLM flash models are thinking models: the reasoning trace precedes the
+        # visible reply, so only text blocks are returned to the caller.
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=16000,
+            max_tokens=4096,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
