@@ -87,8 +87,17 @@ class HubSpotClient:
         response.raise_for_status()
         return True
 
+    def list_contacts(self, limit: int = 20, after: str | None = None) -> tuple[list[dict], str | None]:
+        """Return one page of all contacts and the cursor for the next page (or None)."""
+        params: dict[str, Any] = {"properties": ",".join(CONTACT_PROPERTIES), "limit": limit}
+        if after:
+            params["after"] = after
+        data = self._request("GET", "/crm/v3/objects/contacts", params=params)
+        next_after = data.get("paging", {}).get("next", {}).get("after")
+        return data.get("results", []), next_after
+
     def search_contacts(
-        self, query: str, limit: int = 10, after: str | None = None
+        self, query: str, limit: int = 20, after: str | None = None
     ) -> tuple[list[dict], str | None]:
         """Return one page of matching contacts and the cursor for the next page (or None)."""
         body: dict[str, Any] = {"query": query, "properties": CONTACT_PROPERTIES, "limit": limit}

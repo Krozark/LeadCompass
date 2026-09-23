@@ -16,3 +16,8 @@ config/business_profile.yaml
 
 # OS
 .DS_Store
+
+.idea/
+.claude/
+.agents/
+uv.lock

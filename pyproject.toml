@@ -1,3 +1,21 @@
+[project]
+name = "leadcompass"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit>=1.38",
+    "anthropic>=0.40",
+    "requests>=2.32",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+]
+
 [tool.ruff]
 line-length = 110
 target-version = "py311"

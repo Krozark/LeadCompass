@@ -46,6 +46,20 @@ class HubSpotClientBehaviorTests(unittest.TestCase):
         self.client._session.get.return_value = _response(json_data={"name": "leadcompass_score"})
         self.assertTrue(self.client._property_exists("leadcompass_score"))
 
+    def test_list_contacts_returns_results_and_next_cursor(self):
+        self.client._session.request.return_value = _response(
+            json_data={"results": [{"id": "1"}, {"id": "2"}], "paging": {"next": {"after": "20"}}}
+        )
+        results, after = self.client.list_contacts()
+        self.assertEqual(len(results), 2)
+        self.assertEqual(after, "20")
+
+    def test_list_contacts_no_next_page(self):
+        self.client._session.request.return_value = _response(json_data={"results": [{"id": "1"}]})
+        results, after = self.client.list_contacts()
+        self.assertEqual(results, [{"id": "1"}])
+        self.assertIsNone(after)
+
     def test_search_contacts_returns_results_and_next_cursor(self):
         self.client._session.request.return_value = _response(
             json_data={"results": [{"id": "1"}], "paging": {"next": {"after": "42"}}}

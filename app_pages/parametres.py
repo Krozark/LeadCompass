@@ -14,8 +14,7 @@ from leadcompass.config import (
 from leadcompass.llm.claude_cli import ClaudeCLIBackend, ClaudeCLIError
 from leadcompass.tasks.profile_generation import generate_profile_from_folders
 
-st.set_page_config(page_title="LeadCompass — Paramètres", page_icon="⚙️")
-st.title("⚙️ Paramètres — Profil entreprise")
+st.title("Profil entreprise")
 st.caption(
     "Ces informations sont enregistrées dans config/business_profile.yaml (non versionné) "
     "et injectées dans chaque tâche IA pour que les réponses soient pertinentes."
@@ -30,9 +29,11 @@ st.caption(
     "en lecture seule — aucun fichier n'est modifié — et propose une mise à jour "
     "du profil ci-dessous, à valider avant d'enregistrer."
 )
-folders_text = st.text_area("Un chemin de dossier par ligne", height=80, key="folders_input")
+folders_text = st.text_area(
+    "Chemins de dossiers", placeholder="Un chemin par ligne", height=80, key="folders_input"
+)
 
-if st.button("Analyser les dossiers"):
+if st.button("Analyser les dossiers", icon=":material/folder_open:"):
     directories = [line.strip() for line in folders_text.strip().splitlines() if line.strip()]
     invalid = [d for d in directories if not Path(d).expanduser().is_dir()]
 
@@ -73,7 +74,6 @@ with st.form("business_profile_form"):
     edited_criteria = st.data_editor(
         criteria_df,
         num_rows="dynamic",
-        use_container_width=True,
         hide_index=True,
         column_config={
             "name": st.column_config.TextColumn("Nom", required=True),
@@ -84,7 +84,7 @@ with st.form("business_profile_form"):
         },
     )
 
-    submitted = st.form_submit_button("Enregistrer")
+    submitted = st.form_submit_button("Enregistrer", icon=":material/save:")
 
 if submitted:
     criteria = [
