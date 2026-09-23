@@ -24,7 +24,7 @@ CONTACT_PROPERTIES = [
     "company",
     "jobtitle",
     "phone",
-    "leadcompas__score_de_pertinence",
+    "leadcompass__score_de_pertinence",
     "leadcompas__classification",
     "leadcompass__type_de_prospect",
 ]
@@ -44,7 +44,7 @@ PROSPECT_TYPE_PROPERTY = {
 
 SCORE_PROPERTIES = [
     {
-        "name": "leadcompas__score_de_pertinence",
+        "name": "leadcompass__score_de_pertinence",
         "label": "LeadCompass - Score de pertinence",
         "type": "number",
         "fieldType": "number",
@@ -163,7 +163,7 @@ class HubSpotClient:
             f"/crm/v3/objects/contacts/{contact_id}",
             json={
                 "properties": {
-                    "leadcompas__score_de_pertinence": score,
+                    "leadcompass__score_de_pertinence": score,
                     "leadcompas__classification": classification,
                 }
             },
