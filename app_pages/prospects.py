@@ -293,6 +293,19 @@ with col_detail:
 
     with tab_score:
         score_key = f"score_{contact_id}"
+
+        # Show score stored in HubSpot when no fresh result is in session
+        stored_score = props.get("leadcompass__score_de_pertinence")
+        stored_classif = props.get("leadcompas__classification")
+        if score_key not in st.session_state and stored_score is not None:
+            try:
+                pct = round(float(stored_score) / profile.max_score() * 100, 1)
+            except (ValueError, ZeroDivisionError):
+                pct = None
+            if pct is not None:
+                st.metric("Score enregistré", f"{pct} %", (stored_classif or "").capitalize())
+                st.caption("Recalcule pour voir le détail par critère.")
+
         if st.button("Calculer le score", icon=":material/star:"):
             with st.spinner("Évaluation en cours..."):
                 st.session_state[score_key] = generate_score(context, profile, claude)
