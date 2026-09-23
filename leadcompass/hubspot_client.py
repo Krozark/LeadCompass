@@ -146,7 +146,16 @@ class HubSpotClient:
     def ensure_custom_properties(self) -> None:
         for prop in [*SCORE_PROPERTIES, PROSPECT_TYPE_PROPERTY]:
             if not self._property_exists(prop["name"]):
-                self._request("POST", "/crm/v3/properties/contacts", json=prop)
+                try:
+                    self._request("POST", "/crm/v3/properties/contacts", json=prop)
+                except requests.HTTPError as exc:
+                    if exc.response is not None and exc.response.status_code == 403:
+                        raise HubSpotError(
+                            f"Impossible de créer la propriété « {prop['name']} » : le token HubSpot "
+                            "n'a pas le scope « CRM Properties ». Crée cette propriété manuellement "
+                            "dans HubSpot (Paramètres → Propriétés → Contacts) puis réessaie."
+                        ) from exc
+                    raise
 
     def update_score(self, contact_id: str, score: float, classification: str) -> None:
         self._request(

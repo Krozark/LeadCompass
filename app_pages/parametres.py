@@ -67,7 +67,7 @@ with st.form("business_profile_form"):
     st.caption(
         "Liste des catégories disponibles pour qualifier vos prospects (ex. : B2C, Festival, Structure…)."
     )
-    types_df = pd.DataFrame({"type": profile.prospect_types}, columns=["type"])
+    types_df = pd.DataFrame({"type": pd.Series(profile.prospect_types, dtype=str)})
     edited_types = st.data_editor(
         types_df,
         num_rows="dynamic",
