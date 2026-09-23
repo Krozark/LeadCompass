@@ -36,8 +36,8 @@ def generate_profile_from_folders(
     """Explore `folders` and return a (re)generated business profile.
 
     Each folder is a ``(path, description)`` tuple; description may be empty.
-    Only makes sense with a backend that can actually browse the filesystem
-    (Claude via the CLI) — GLM has no file access and would just hallucinate.
+    Requires a CLI backend, which browses the filesystem through its
+    read-only tools.
     """
     directories = [path for path, _ in folders]
 

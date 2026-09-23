@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -16,7 +17,6 @@ PROFILE_EXAMPLE_PATH = CONFIG_DIR / "business_profile.example.yaml"
 SETTINGS_PATH = CONFIG_DIR / "settings.yaml"
 
 HUBSPOT_TOKEN = os.environ.get("HUBSPOT_TOKEN", "")
-ZAI_API_KEY = os.environ.get("ZAI_API_KEY", "")
 CLAUDE_CLI_PATH = os.environ.get("CLAUDE_CLI_PATH", "claude")
 
 
@@ -25,6 +25,14 @@ class ScoringCriterion:
     name: str
     description: str
     weight: float = 1.0
+
+
+@dataclass
+class LLMBackendConfig:
+    """Un modèle IA exposé par un CLI compatible Claude Code (binaire + arguments déjà en place)."""
+
+    name: str
+    cli_path: str
 
 
 @dataclass
@@ -128,6 +136,32 @@ def load_llm_choice() -> str:
 def save_llm_choice(name: str) -> None:
     data = load_settings()
     data["llm"] = name
+    CONFIG_DIR.mkdir(exist_ok=True)
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
+def load_llm_backends() -> list[LLMBackendConfig]:
+    """Modèles enregistrés ; à défaut, liste initiale : Claude, plus GLM si `claude-zai` est présent."""
+    data = load_settings().get("llm_backends")
+    if isinstance(data, list):
+        backends = [
+            LLMBackendConfig(str(b.get("name", "")).strip(), str(b.get("cli_path", "")).strip())
+            for b in data
+            if isinstance(b, dict) and b.get("name") and b.get("cli_path")
+        ]
+        if backends:
+            return backends
+
+    backends = [LLMBackendConfig("Claude", CLAUDE_CLI_PATH)]
+    if shutil.which("claude-zai"):
+        backends.append(LLMBackendConfig("GLM", "claude-zai"))
+    return backends
+
+
+def save_llm_backends(backends: list[LLMBackendConfig]) -> None:
+    data = load_settings()
+    data["llm_backends"] = [{"name": b.name, "cli_path": b.cli_path} for b in backends]
     CONFIG_DIR.mkdir(exist_ok=True)
     with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)

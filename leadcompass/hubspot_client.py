@@ -157,6 +157,15 @@ class HubSpotClient:
                         ) from exc
                     raise
 
+    def create_contact(self, properties: dict) -> dict:
+        """Create a contact; raises HubSpotError on duplicate email (HTTP 409)."""
+        try:
+            return self._request("POST", "/crm/v3/objects/contacts", json={"properties": properties})
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 409:
+                raise HubSpotError("Un contact avec cet email existe déjà dans HubSpot.") from exc
+            raise
+
     def update_score(self, contact_id: str, score: float, classification: str) -> None:
         self._request(
             "PATCH",

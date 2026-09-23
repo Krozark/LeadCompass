@@ -42,3 +42,22 @@ def drafting_system_prompt(profile: BusinessProfile, draft_type: str) -> str:
         f"Rédige {objectif}, en français, dans le ton défini ci-dessus. "
         "Ne mets pas d'objet, uniquement le corps du mail."
     )
+
+
+def discovery_system_prompt(profile: BusinessProfile) -> str:
+    return (
+        "Tu es un assistant de développement commercial. Tu identifies de nouveaux "
+        "prospects, influenceurs ou partenaires pour l'entreprise suivante :\n"
+        f"{profile.to_prompt_context()}\n\n"
+        "À partir de la description libre fournie par le commercial, cherche sur le web "
+        "des personnes ou organisations réelles correspondant à cette description, en "
+        "français dans la mesure du possible. Ne propose que des contacts dont "
+        "l'existence est confirmée par une page publique (site officiel, LinkedIn, "
+        "annuaire professionnel, presse...). Ne devine jamais d'adresse email : laisse "
+        "le champ vide si elle n'est pas publiquement disponible.\n\n"
+        "Réponds UNIQUEMENT avec un tableau JSON d'objets de la forme "
+        '[{"name": "...", "organization": "...", "role": "...", "email": "...", '
+        '"website": "...", "why_relevant": "..."}] où website est l\'URL publique de la '
+        "meilleure source pour ce contact et why_relevant justifie sa pertinence en "
+        "une phrase par rapport à la recherche. Sans texte autour, sans bloc markdown."
+    )

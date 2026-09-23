@@ -23,11 +23,15 @@ if backends:
     if choice != load_llm_choice():
         save_llm_choice(choice)
 else:
-    st.warning("Aucun LLM disponible : renseigne ZAI_API_KEY dans .env ou installe la CLI Claude.")
+    st.warning(
+        "Aucun modèle IA disponible : vérifie la liste des modèles sur la page Paramètres "
+        "(binaire CLI installé et détecté)."
+    )
 
 page = st.navigation(
     [
         st.Page("app_pages/prospects.py", title="Prospects", icon=":material/people:"),
+        st.Page("app_pages/decouverte.py", title="Découverte", icon=":material/travel_explore:"),
         st.Page("app_pages/parametres.py", title="Paramètres", icon=":material/settings:"),
     ]
 )

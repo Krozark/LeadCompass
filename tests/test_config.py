@@ -8,9 +8,12 @@ from unittest.mock import patch
 from leadcompass import config
 from leadcompass.config import (
     BusinessProfile,
+    LLMBackendConfig,
     ScoringCriterion,
     load_business_profile,
+    load_llm_backends,
     save_business_profile,
+    save_llm_backends,
 )
 
 
@@ -108,6 +111,54 @@ class LlmChoiceTests(unittest.TestCase):
             f.write("theme: dark\n")
         config.save_llm_choice("GLM")
         self.assertEqual(config.load_settings().get("theme"), "dark")
+
+
+class LlmBackendsTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        tmp_dir = Path(tmp.name)
+
+        for name, value in (
+            ("CONFIG_DIR", tmp_dir),
+            ("SETTINGS_PATH", tmp_dir / "settings.yaml"),
+        ):
+            patcher = patch.object(config, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_defaults_without_settings(self):
+        with patch.object(config.shutil, "which", return_value=None):
+            backends = load_llm_backends()
+        self.assertEqual(backends, [LLMBackendConfig("Claude", config.CLAUDE_CLI_PATH)])
+
+    def test_defaults_add_glm_when_claude_zai_detected(self):
+        with patch.object(
+            config.shutil, "which", side_effect=lambda p: f"/usr/bin/{p}" if p == "claude-zai" else None
+        ):
+            backends = load_llm_backends()
+        self.assertEqual(
+            backends,
+            [LLMBackendConfig("Claude", config.CLAUDE_CLI_PATH), LLMBackendConfig("GLM", "claude-zai")],
+        )
+
+    def test_save_then_load_round_trip(self):
+        save_llm_backends(
+            [LLMBackendConfig("Claude", "claude"), LLMBackendConfig("Zai", "/home/me/bin/claude-zai")]
+        )
+        self.assertEqual(
+            load_llm_backends(),
+            [LLMBackendConfig("Claude", "claude"), LLMBackendConfig("Zai", "/home/me/bin/claude-zai")],
+        )
+        # le choix enregistré et les autres réglages survivent à l'écriture
+        self.assertEqual(
+            config.load_settings().get("llm_backends")[0], {"name": "Claude", "cli_path": "claude"}
+        )
+
+    def test_saved_backends_win_over_defaults(self):
+        save_llm_backends([LLMBackendConfig("Perso", "/opt/mon-claude")])
+        with patch.object(config.shutil, "which", return_value="/usr/bin/claude-zai"):
+            self.assertEqual(load_llm_backends(), [LLMBackendConfig("Perso", "/opt/mon-claude")])
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -7,15 +8,72 @@ import streamlit as st
 
 from leadcompass.config import (
     BusinessProfile,
+    LLMBackendConfig,
     ScoringCriterion,
     load_business_profile,
+    load_llm_backends,
     save_business_profile,
+    save_llm_backends,
 )
-from leadcompass.llm.claude_cli import ClaudeCLIBackend, ClaudeCLIError
-from leadcompass.llm.registry import claude_cli_available
+from leadcompass.llm.claude_cli import ClaudeCLIError
+from leadcompass.llm.registry import configured_backends, default_backend_name, get_backend
 from leadcompass.tasks.profile_generation import generate_profile_from_folders
 
-st.title("Profil entreprise")
+st.title("Paramètres")
+
+# ── Modèles IA ────────────────────────────────────────────────────────────────
+st.subheader("Modèles IA")
+st.caption(
+    "Chaque modèle est un CLI compatible Claude Code : `claude` directement, ou un wrapper "
+    "pointant sur un autre fournisseur (ex. `claude-zai` pour les modèles GLM de Z.ai). "
+    "Le sélecteur en haut de l'application permet ensuite de choisir à tout moment le modèle "
+    "utilisé par défaut ; cette liste est enregistrée dans config/settings.yaml."
+)
+
+models_df = pd.DataFrame(
+    [{"name": b.name, "cli_path": b.cli_path} for b in load_llm_backends()],
+    columns=["name", "cli_path"],
+)
+edited_models = st.data_editor(
+    models_df,
+    num_rows="dynamic",
+    hide_index=True,
+    key="models_editor",
+    column_config={
+        "name": st.column_config.TextColumn("Nom affiché", required=True),
+        "cli_path": st.column_config.TextColumn("Binaire à appeler", required=True),
+    },
+)
+
+edited_models = edited_models.dropna(subset=["name", "cli_path"], how="all")
+for _, row in edited_models.iterrows():
+    name, cli_path = str(row["name"]).strip(), str(row["cli_path"]).strip()
+    if not name or not cli_path:
+        continue
+    detected = shutil.which(cli_path) is not None
+    state = "détecté" if detected else "binaire introuvable"
+    icon = ":material/check_circle:" if detected else ":material/warning:"
+    st.markdown(f"- {icon} **{name}** (`{cli_path}`) — {state}")
+
+if st.button("Enregistrer les modèles", icon=":material/save:"):
+    models = [
+        LLMBackendConfig(str(row["name"]).strip(), str(row["cli_path"]).strip())
+        for _, row in edited_models.iterrows()
+        if str(row["name"]).strip() and str(row["cli_path"]).strip()
+    ]
+    names = [m.name for m in models]
+    if not models:
+        st.error("Indique au moins un modèle (nom et binaire).")
+    elif len(names) != len(set(names)):
+        st.error("Chaque modèle doit avoir un nom unique.")
+    else:
+        save_llm_backends(models)
+        st.success("Modèles enregistrés.")
+
+st.divider()
+
+# ── Profil entreprise ─────────────────────────────────────────────────────────
+st.subheader("Profil entreprise")
 st.caption(
     "Ces informations sont enregistrées dans config/business_profile.yaml (non versionné) "
     "et injectées dans chaque tâche IA pour que les réponses soient pertinentes."
@@ -26,7 +84,7 @@ saved_profile = load_business_profile()
 st.subheader("Génération automatique depuis des dossiers")
 st.caption(
     "Donne un ou plusieurs dossiers contenant des documents sur l'entreprise "
-    "(présentation, documentation produit, site exporté...). Claude les explore "
+    "(présentation, documentation produit, site exporté...). Le modèle sélectionné les explore "
     "en lecture seule — aucun fichier n'est modifié — et propose une mise à jour "
     "du profil ci-dessous, à valider avant d'enregistrer."
 )
@@ -45,11 +103,14 @@ edited_folders = st.data_editor(
     key="folders_editor",
 )
 
-claude_ok = claude_cli_available()
-if not claude_ok:
-    st.caption("CLI Claude non détectée — l'analyse de dossiers nécessite Claude (accès fichiers).")
+available_backends = configured_backends()
+profile_llm_name = st.session_state.get("default_backend_name") or default_backend_name()
+profile_llm = get_backend(profile_llm_name) if profile_llm_name in available_backends else None
 
-if st.button("Analyser les dossiers", icon=":material/folder_open:", disabled=not claude_ok):
+if profile_llm is None:
+    st.caption("Aucun modèle IA détecté — configure-en un dans la section Modèles IA ci-dessus.")
+
+if st.button("Analyser les dossiers", icon=":material/folder_open:", disabled=profile_llm is None):
     raw_folders = [
         (str(row["chemin"]).strip(), str(row["description"]).strip() if pd.notna(row["description"]) else "")
         for _, row in edited_folders.iterrows()
@@ -67,7 +128,7 @@ if st.button("Analyser les dossiers", icon=":material/folder_open:", disabled=no
         try:
             with st.spinner("Analyse en cours (peut prendre plusieurs minutes)..."):
                 st.session_state["generated_profile"] = generate_profile_from_folders(
-                    resolved, saved_profile, ClaudeCLIBackend()
+                    resolved, saved_profile, profile_llm
                 )
             st.success("Profil généré ci-dessous — vérifie-le puis enregistre-le.")
         except ClaudeCLIError as exc:

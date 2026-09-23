@@ -11,9 +11,14 @@ class ClaudeCLIError(RuntimeError):
 
 
 class ClaudeCLIBackend:
-    name = "Claude"
-
-    def __init__(self, cli_path: str = CLAUDE_CLI_PATH, max_turns: int = 6, timeout: int = 180):
+    def __init__(
+        self,
+        cli_path: str = CLAUDE_CLI_PATH,
+        name: str = "Claude",
+        max_turns: int = 6,
+        timeout: int = 180,
+    ):
+        self.name = name
         self._cli_path = cli_path
         self._max_turns = max_turns
         self._timeout = timeout

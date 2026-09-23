@@ -131,6 +131,28 @@ class HubSpotClientBehaviorTests(unittest.TestCase):
         with self.assertRaises(requests.HTTPError):
             self.client.create_note("contact-1", "hello")
 
+    def test_create_contact_posts_properties(self):
+        self.client._session.request.return_value = _response(
+            status_code=201, json_data={"id": "contact-9", "properties": {"email": "a@b.c"}}
+        )
+        contact = self.client.create_contact({"email": "a@b.c"})
+        self.assertEqual(contact["id"], "contact-9")
+        method, url = self.client._session.request.call_args.args
+        self.assertEqual(method, "POST")
+        self.assertTrue(url.endswith("/crm/v3/objects/contacts"))
+        self.assertEqual(
+            self.client._session.request.call_args.kwargs["json"]["properties"]["email"], "a@b.c"
+        )
+
+    def test_create_contact_duplicate_email_raises_hubspot_error(self):
+        response = MagicMock()
+        response.status_code = 409
+        response.content = b""
+        response.raise_for_status.side_effect = requests.HTTPError("409 conflict", response=response)
+        self.client._session.request.return_value = response
+        with self.assertRaises(HubSpotError):
+            self.client.create_contact({"email": "dup@example.com"})
+
 
 if __name__ == "__main__":
     unittest.main()
