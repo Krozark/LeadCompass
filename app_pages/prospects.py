@@ -317,6 +317,12 @@ with col_detail:
         draft_type = st.selectbox(
             "Type d'email", list(DRAFT_TYPES.keys()), format_func=lambda k: DRAFT_TYPES[k]
         )
+        draft_instructions = st.text_area(
+            "Consignes",
+            placeholder="Informations ou instructions spécifiques pour cet email (ex. : mentionner une démo le 5 oct., ton informel, limiter à 3 phrases…)",
+            height=80,
+            key=f"draft_instructions_{contact_id}",
+        )
         compare = st.toggle("Comparer avec GLM")
         drafts_key = f"drafts_{contact_id}_{draft_type}_{compare}"
 
@@ -324,11 +330,11 @@ with col_detail:
             with st.spinner("Rédaction en cours..."):
                 if compare:
                     st.session_state[drafts_key] = compare_drafts(
-                        context, profile, draft_type, [claude, GLMBackend()]
+                        context, profile, draft_type, [claude, GLMBackend()], draft_instructions
                     )
                 else:
                     st.session_state[drafts_key] = {
-                        claude.name: generate_draft(context, profile, draft_type, claude)
+                        claude.name: generate_draft(context, profile, draft_type, claude, draft_instructions)
                     }
 
         if drafts_key in st.session_state:
