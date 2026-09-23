@@ -308,7 +308,6 @@ with col_detail:
                 icon=":material/save:",
             ):
                 try:
-                    hubspot.ensure_custom_properties()
                     hubspot.update_score(contact_id, result.total, result.classification)
                     st.success("Score enregistré dans HubSpot.")
                 except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
