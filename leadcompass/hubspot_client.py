@@ -162,7 +162,38 @@ class HubSpotClient:
                 f"/crm/v3/objects/notes/{note_id}/associations/contacts/{contact_id}/note_to_contact",
             )
 
-    def create_email_log(self, contact_id: str, body_text: str, direction: str, subject: str = "") -> None:
+    def update_note(self, note_id: str, body_text: str) -> None:
+        self._request(
+            "PATCH",
+            f"/crm/v3/objects/notes/{note_id}",
+            json={"properties": {"hs_note_body": body_text}},
+        )
+
+    def update_email_log(
+        self,
+        email_id: str,
+        body_text: str,
+        direction: str,
+        subject: str = "",
+        timestamp_ms: int | None = None,
+    ) -> None:
+        props: dict[str, Any] = {
+            "hs_email_direction": direction,
+            "hs_email_subject": subject,
+            "hs_email_text": body_text,
+        }
+        if timestamp_ms is not None:
+            props["hs_timestamp"] = timestamp_ms
+        self._request("PATCH", f"/crm/v3/objects/emails/{email_id}", json={"properties": props})
+
+    def create_email_log(
+        self,
+        contact_id: str,
+        body_text: str,
+        direction: str,
+        subject: str = "",
+        timestamp_ms: int | None = None,
+    ) -> None:
         """Log a sent or received email on a contact.
 
         direction: "EMAIL" (outgoing) or "INCOMING_EMAIL" (incoming).
@@ -175,7 +206,7 @@ class HubSpotClient:
                     "hs_email_direction": direction,
                     "hs_email_subject": subject,
                     "hs_email_text": body_text,
-                    "hs_timestamp": int(time.time() * 1000),
+                    "hs_timestamp": timestamp_ms if timestamp_ms is not None else int(time.time() * 1000),
                 }
             },
         )

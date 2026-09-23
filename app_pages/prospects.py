@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime
+from datetime import date, datetime
+from datetime import time as dtime
 
 import streamlit as st
 
@@ -53,12 +54,69 @@ except HubSpotError as exc:
     st.stop()
 
 
+# Notes created by LeadCompass (summaries, scores, drafts) carry this prefix so
+# they are never confused with manual exchange logs in the Échanges tab.
+_LC_PREFIX = "[LeadCompass] "
+
+_EXCHANGE_DIR = {"sent": "EMAIL", "received": "INCOMING_EMAIL"}
+_EXCHANGE_LABELS = {"sent": "Email envoyé", "received": "Email reçu"}
+
+
+def _fmt_ts(ts: str | None) -> str:
+    if not ts:
+        return ""
+    with contextlib.suppress(ValueError, OSError):
+        return datetime.fromtimestamp(int(ts) / 1000).strftime("%d/%m/%Y %H:%M")
+    return ""
+
+
 def _save_note(contact_id: str, text: str) -> None:
     try:
-        hubspot.create_note(contact_id, text)
+        hubspot.create_note(contact_id, _LC_PREFIX + text)
         st.success("Enregistré dans HubSpot.")
     except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
         st.error(f"Échec de l'enregistrement dans HubSpot : {exc}")
+
+
+def _ts_to_dt(ts: str | None) -> datetime:
+    if ts:
+        with contextlib.suppress(ValueError, OSError):
+            return datetime.fromtimestamp(int(ts) / 1000)
+    return datetime.now()
+
+
+@st.dialog("Modifier l'échange")
+def _edit_exchange_dialog(eng: dict, eng_type: str) -> None:
+    eprops = eng.get("properties", {})
+    eng_id = eng.get("id", "")
+
+    current_dir = eprops.get("hs_email_direction", "")
+    default_type = "received" if "INCOMING" in current_dir else "sent"
+    new_type = st.segmented_control(
+        "Type",
+        options=["sent", "received"],
+        format_func=lambda k: _EXCHANGE_LABELS[k],
+        default=default_type,
+    )
+    new_subject = st.text_input("Sujet", value=eprops.get("hs_email_subject") or "")
+
+    current_dt = _ts_to_dt(eprops.get("hs_timestamp"))
+    col_d, col_t = st.columns(2)
+    new_date = col_d.date_input("Date", value=current_dt.date())
+    new_time = col_t.time_input("Heure", value=current_dt.time().replace(second=0, microsecond=0), step=300)
+
+    new_body = st.text_area(
+        "Contenu", value=eprops.get("hs_email_text") or "", height=200, label_visibility="collapsed"
+    )
+
+    if st.button("Enregistrer", icon=":material/save:", type="primary"):
+        try:
+            ts_ms = int(datetime.combine(new_date, new_time).timestamp() * 1000)
+            hubspot.update_email_log(eng_id, new_body, _EXCHANGE_DIR[new_type], new_subject, ts_ms)
+            _get_engagements.clear()
+            st.rerun()
+        except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
+            st.error(f"Échec de la modification : {exc}")
 
 
 # ── Session state defaults ────────────────────────────────────────────────────
@@ -214,23 +272,24 @@ with col_detail:
                         _save_note(contact_id, st.session_state[area_key])
 
     with tab_exchanges:
-        _EXCHANGE_TYPES = {"note": "Note", "sent": "Email envoyé", "received": "Email reçu"}
         exchange_type = st.segmented_control(
-            "Type d'échange",
-            options=list(_EXCHANGE_TYPES.keys()),
-            format_func=lambda k: _EXCHANGE_TYPES[k],
-            default="note",
+            "Type",
+            options=list(_EXCHANGE_LABELS.keys()),
+            format_func=lambda k: _EXCHANGE_LABELS[k],
+            default="sent",
             key=f"exchange_type_{contact_id}",
         )
 
         with st.form(f"new_exchange_form_{contact_id}", border=False):
-            if exchange_type in ("sent", "received"):
-                subject_input = st.text_input("Sujet", placeholder="Sujet de l'email")
-            else:
-                subject_input = ""
+            subject_input = st.text_input("Sujet", placeholder="Sujet de l'email")
+            col_d, col_t = st.columns(2)
+            add_date = col_d.date_input("Date", value=date.today())
+            add_time = col_t.time_input(
+                "Heure", value=dtime(datetime.now().hour, datetime.now().minute), step=300
+            )
             note_text = st.text_area(
                 "Contenu",
-                placeholder="Résumé d'un appel, note de contexte, corps de l'email…",
+                placeholder="Corps de l'email…",
                 height=100,
                 label_visibility="collapsed",
             )
@@ -239,13 +298,14 @@ with col_detail:
         if add_submitted:
             if note_text.strip():
                 try:
-                    if exchange_type == "note":
-                        hubspot.create_note(contact_id, note_text.strip())
-                    else:
-                        direction = "INCOMING_EMAIL" if exchange_type == "received" else "EMAIL"
-                        hubspot.create_email_log(
-                            contact_id, note_text.strip(), direction, subject_input.strip()
-                        )
+                    ts_ms = int(datetime.combine(add_date, add_time).timestamp() * 1000)
+                    hubspot.create_email_log(
+                        contact_id,
+                        note_text.strip(),
+                        _EXCHANGE_DIR[exchange_type],
+                        subject_input.strip(),
+                        ts_ms,
+                    )
                     _get_engagements.clear()
                     st.success("Échange enregistré.")
                     st.rerun()
@@ -256,38 +316,40 @@ with col_detail:
 
         st.divider()
 
-        if not engagements:
+        # Échanges = emails only (notes are used internally for prospect info)
+        exchanges = [e for e in engagements if e.get("engagement_type") == "emails"]
+
+        if not exchanges:
             st.caption("Aucun échange enregistré pour ce prospect.")
         else:
-            recent = list(reversed(engagements))
-            for idx, eng in enumerate(recent):
+            for idx, eng in enumerate(reversed(exchanges)):
                 eprops = eng.get("properties", {})
                 eng_type = eng.get("engagement_type", "notes")
                 is_email = eng_type == "emails"
+                eng_id = eng.get("id", "")
 
-                ts = eprops.get("hs_timestamp")
-                date_str = ""
-                if ts:
-                    with contextlib.suppress(ValueError, OSError):
-                        date_str = datetime.fromtimestamp(int(ts) / 1000).strftime("%d/%m/%Y %H:%M")
-
+                date_str = _fmt_ts(eprops.get("hs_timestamp"))
                 body = eprops.get("hs_note_body") or eprops.get("hs_email_text") or ""
 
                 if is_email:
                     subject = eprops.get("hs_email_subject") or "Email"
-                    direction = eprops.get("hs_email_direction", "")
-                    dir_label = "reçu" if "INCOMING" in direction else "envoyé"
+                    raw_dir = eprops.get("hs_email_direction", "")
+                    dir_label = "reçu" if "INCOMING" in raw_dir else "envoyé"
                     label = f"{subject}  ·  {dir_label}" + (f"  ·  {date_str}" if date_str else "")
-                    icon = ":material/mail:"
+                    exp_icon = ":material/mail:"
                 else:
                     preview = (body[:60] + "…") if len(body) > 60 else body
                     label = ("Note" + (f"  ·  {date_str}" if date_str else "")) + (
                         f"  —  {preview}" if preview else ""
                     )
-                    icon = ":material/note:"
+                    exp_icon = ":material/note:"
 
-                with st.expander(label, icon=icon, expanded=(idx < 3)):
+                with st.expander(label, icon=exp_icon, expanded=(idx < 3)):
+                    if date_str:
+                        st.caption(date_str)
                     if body:
                         st.markdown(body)
                     else:
                         st.caption("Aucun contenu.")
+                    if st.button("Modifier", key=f"edit_{eng_id}", icon=":material/edit:"):
+                        _edit_exchange_dialog(eng, eng_type)
