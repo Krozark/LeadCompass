@@ -9,16 +9,18 @@ Le cœur de métier n'est pas codé en dur : un **profil entreprise** (`config/b
 1. Vous cherchez un prospect existant dans HubSpot depuis l'interface.
 2. LeadCompass récupère sa fiche + l'historique des échanges (notes, emails) via l'API HubSpot.
 3. À la demande, vous générez :
-   - un **résumé** du prospect (HubSpot + recherche web, via Claude),
-   - un **score de pertinence** selon votre grille de critères (via Claude),
+   - un **résumé** du prospect (HubSpot + recherche web),
+   - un **score de pertinence** selon votre grille de critères,
    - un **brouillon d'email**, avec une option pour comparer les suggestions de plusieurs modèles (Claude et GLM).
+
+   Le modèle utilisé par défaut est choisi via le sélecteur en haut de l'application, parmi les backends disponibles (CLI Claude détectée, clé Z.ai renseignée). Le choix est mémorisé dans `config/settings.yaml` (non versionné).
 4. Ce que vous validez est enregistré dans HubSpot : score/classification en propriétés personnalisées, résumé et emails retenus en notes. Rien n'est envoyé ni écrit automatiquement — vous restez dans la boucle.
 
 ## Prérequis
 
 - Python 3.11+
 - [Claude Code CLI](https://code.claude.com/docs) installé et connecté (`claude auth login`) — utilisé en mode headless (`claude -p`), sans coût API additionnel si vous avez un abonnement Claude.
-- Un compte [Z.ai](https://z.ai) avec une clé API (backend GLM, utilisé uniquement pour la comparaison lors de la rédaction).
+- Un compte [Z.ai](https://z.ai) avec une clé API (backend GLM, utilisable comme modèle par défaut ou pour la comparaison lors de la rédaction).
 - Une Private App HubSpot avec les scopes :
   - `crm.objects.contacts.read`, `crm.objects.contacts.write`
   - `crm.objects.notes.write` (ou l'équivalent engagements selon votre compte)

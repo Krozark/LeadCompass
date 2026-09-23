@@ -12,6 +12,7 @@ from leadcompass.config import (
     save_business_profile,
 )
 from leadcompass.llm.claude_cli import ClaudeCLIBackend, ClaudeCLIError
+from leadcompass.llm.registry import claude_cli_available
 from leadcompass.tasks.profile_generation import generate_profile_from_folders
 
 st.title("Profil entreprise")
@@ -29,20 +30,40 @@ st.caption(
     "en lecture seule — aucun fichier n'est modifié — et propose une mise à jour "
     "du profil ci-dessous, à valider avant d'enregistrer."
 )
-folders_text = st.text_area(
-    "Chemins de dossiers", placeholder="Un chemin par ligne", height=80, key="folders_input"
+folders_df = pd.DataFrame({"chemin": pd.Series(dtype=str), "description": pd.Series(dtype=str)})
+edited_folders = st.data_editor(
+    folders_df,
+    num_rows="dynamic",
+    hide_index=True,
+    column_config={
+        "chemin": st.column_config.TextColumn("Chemin du dossier", required=True),
+        "description": st.column_config.TextColumn(
+            "Description / poids",
+            help="Précise le contenu ou l'importance de ce dossier pour guider l'IA.",
+        ),
+    },
+    key="folders_editor",
 )
 
-if st.button("Analyser les dossiers", icon=":material/folder_open:"):
-    directories = [line.strip() for line in folders_text.strip().splitlines() if line.strip()]
-    invalid = [d for d in directories if not Path(d).expanduser().is_dir()]
+claude_ok = claude_cli_available()
+if not claude_ok:
+    st.caption("CLI Claude non détectée — l'analyse de dossiers nécessite Claude (accès fichiers).")
 
-    if not directories:
+if st.button("Analyser les dossiers", icon=":material/folder_open:", disabled=not claude_ok):
+    raw_folders = [
+        (str(row["chemin"]).strip(), str(row["description"]).strip() if pd.notna(row["description"]) else "")
+        for _, row in edited_folders.iterrows()
+        if str(row["chemin"]).strip()
+    ]
+    paths = [p for p, _ in raw_folders]
+    invalid = [p for p in paths if not Path(p).expanduser().is_dir()]
+
+    if not paths:
         st.warning("Indique au moins un dossier.")
     elif invalid:
         st.error("Dossier(s) introuvable(s) : " + ", ".join(invalid))
     else:
-        resolved = [str(Path(d).expanduser().resolve()) for d in directories]
+        resolved = [(str(Path(p).expanduser().resolve()), desc) for p, desc in raw_folders]
         try:
             with st.spinner("Analyse en cours (peut prendre plusieurs minutes)..."):
                 st.session_state["generated_profile"] = generate_profile_from_folders(

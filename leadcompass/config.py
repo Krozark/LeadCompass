@@ -13,6 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 PROFILE_PATH = CONFIG_DIR / "business_profile.yaml"
 PROFILE_EXAMPLE_PATH = CONFIG_DIR / "business_profile.example.yaml"
+SETTINGS_PATH = CONFIG_DIR / "settings.yaml"
 
 HUBSPOT_TOKEN = os.environ.get("HUBSPOT_TOKEN", "")
 ZAI_API_KEY = os.environ.get("ZAI_API_KEY", "")
@@ -110,4 +111,23 @@ def save_business_profile(profile: BusinessProfile) -> None:
     }
     CONFIG_DIR.mkdir(exist_ok=True)
     with open(PROFILE_PATH, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
+def load_settings() -> dict:
+    if not SETTINGS_PATH.exists():
+        return {}
+    with open(SETTINGS_PATH, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def load_llm_choice() -> str:
+    return str(load_settings().get("llm", ""))
+
+
+def save_llm_choice(name: str) -> None:
+    data = load_settings()
+    data["llm"] = name
+    CONFIG_DIR.mkdir(exist_ok=True)
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)

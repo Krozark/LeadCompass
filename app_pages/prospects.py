@@ -9,8 +9,7 @@ import streamlit as st
 from leadcompass.config import load_business_profile
 from leadcompass.contact_context import build_contact_context
 from leadcompass.hubspot_client import HubSpotClient, HubSpotError
-from leadcompass.llm.claude_cli import ClaudeCLIBackend
-from leadcompass.llm.glm import GLMBackend
+from leadcompass.llm.registry import configured_backends, default_backend_name, get_backend
 from leadcompass.tasks.drafting import compare_drafts, generate_draft
 from leadcompass.tasks.prompts import DRAFT_TYPES
 from leadcompass.tasks.research import generate_summary
@@ -24,7 +23,9 @@ if not profile.is_configured:
         "Le profil entreprise n'est pas configuré. Rends-toi sur la page Paramètres pour le renseigner."
     )
 
-claude = ClaudeCLIBackend()
+backends = configured_backends()
+llm_name = st.session_state.get("default_backend_name") or default_backend_name()
+llm = get_backend(llm_name) if llm_name in backends else None
 
 
 @st.cache_resource
@@ -280,9 +281,9 @@ with col_detail:
             key=f"summary_extra_{contact_id}",
         )
 
-        if st.button("Générer le résumé", icon=":material/auto_awesome:"):
+        if st.button("Générer le résumé", icon=":material/auto_awesome:", disabled=llm is None):
             with st.spinner("Génération en cours..."):
-                st.session_state[summary_key] = generate_summary(context, profile, claude, extra_info)
+                st.session_state[summary_key] = generate_summary(context, profile, llm, extra_info)
 
         if summary_key in st.session_state:
             st.write(st.session_state[summary_key])
@@ -306,9 +307,9 @@ with col_detail:
                 st.metric("Score enregistré", f"{pct} %", (stored_classif or "").capitalize())
                 st.caption("Recalcule pour voir le détail par critère.")
 
-        if st.button("Calculer le score", icon=":material/star:"):
+        if st.button("Calculer le score", icon=":material/star:", disabled=llm is None):
             with st.spinner("Évaluation en cours..."):
-                st.session_state[score_key] = generate_score(context, profile, claude)
+                st.session_state[score_key] = generate_score(context, profile, llm)
 
         if score_key in st.session_state:
             result = st.session_state[score_key]
@@ -336,18 +337,27 @@ with col_detail:
             height=80,
             key=f"draft_instructions_{contact_id}",
         )
-        compare = st.toggle("Comparer avec GLM")
+        compare = st.toggle(
+            "Comparer tous les modèles",
+            disabled=len(backends) < 2,
+            help="Génère une proposition par modèle configuré, côte à côte.",
+        )
         drafts_key = f"drafts_{contact_id}_{draft_type}_{compare}"
 
-        if st.button("Générer", icon=":material/edit:"):
+        if st.button("Générer", icon=":material/edit:", disabled=llm is None):
             with st.spinner("Rédaction en cours..."):
                 if compare:
+                    names = [llm_name, *(name for name in backends if name != llm_name)]
                     st.session_state[drafts_key] = compare_drafts(
-                        context, profile, draft_type, [claude, GLMBackend()], draft_instructions
+                        context,
+                        profile,
+                        draft_type,
+                        [get_backend(name) for name in names],
+                        draft_instructions,
                     )
                 else:
                     st.session_state[drafts_key] = {
-                        claude.name: generate_draft(context, profile, draft_type, claude, draft_instructions)
+                        llm.name: generate_draft(context, profile, draft_type, llm, draft_instructions)
                     }
 
         if drafts_key in st.session_state:

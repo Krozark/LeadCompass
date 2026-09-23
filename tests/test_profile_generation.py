@@ -28,7 +28,7 @@ class GenerateProfileFromFoldersTests(unittest.TestCase):
             "scoring_criteria": [{"name": "Fit", "description": "d", "weight": 2}],
         }
         backend = FakeExploringBackend(json.dumps(payload))
-        result = generate_profile_from_folders(["/tmp/docs"], BusinessProfile(), backend)
+        result = generate_profile_from_folders([("/tmp/docs", "")], BusinessProfile(), backend)
         self.assertEqual(result.name, "Acme")
         self.assertEqual(len(result.scoring_criteria), 1)
         self.assertEqual(result.scoring_criteria[0].weight, 2)
@@ -36,14 +36,14 @@ class GenerateProfileFromFoldersTests(unittest.TestCase):
     def test_includes_existing_profile_in_prompt_when_configured(self):
         backend = FakeExploringBackend('{"name": "Acme", "product_description": "x"}')
         existing = BusinessProfile(name="Old", product_description="Old desc")
-        generate_profile_from_folders(["/tmp/docs"], existing, backend)
+        generate_profile_from_folders([("/tmp/docs", "")], existing, backend)
         _, user_prompt, directories = backend.calls[0]
         self.assertIn("Old", user_prompt)
         self.assertEqual(directories, ["/tmp/docs"])
 
     def test_skips_existing_profile_context_when_not_configured(self):
         backend = FakeExploringBackend('{"name": "Acme", "product_description": "x"}')
-        generate_profile_from_folders(["/tmp/docs"], BusinessProfile(), backend)
+        generate_profile_from_folders([("/tmp/docs", "")], BusinessProfile(), backend)
         _, user_prompt, _ = backend.calls[0]
         self.assertNotIn("Profil actuel", user_prompt)
 

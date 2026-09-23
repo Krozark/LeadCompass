@@ -10,6 +10,7 @@ env/
 # Secrets and instance-specific config
 .env
 config/business_profile.yaml
+config/settings.yaml
 
 # Streamlit
 .streamlit/secrets.toml

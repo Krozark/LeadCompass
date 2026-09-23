@@ -77,5 +77,38 @@ class LoadSaveBusinessProfileTests(unittest.TestCase):
         self.assertEqual(load_business_profile(), profile)
 
 
+class LlmChoiceTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        tmp_dir = Path(tmp.name)
+
+        for name, value in (
+            ("CONFIG_DIR", tmp_dir),
+            ("SETTINGS_PATH", tmp_dir / "settings.yaml"),
+        ):
+            patcher = patch.object(config, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_missing_settings_returns_empty(self):
+        self.assertEqual(config.load_llm_choice(), "")
+
+    def test_save_then_load_round_trip(self):
+        config.save_llm_choice("GLM")
+        self.assertEqual(config.load_llm_choice(), "GLM")
+
+    def test_save_overwrites_previous_choice(self):
+        config.save_llm_choice("Claude")
+        config.save_llm_choice("GLM")
+        self.assertEqual(config.load_llm_choice(), "GLM")
+
+    def test_save_preserves_unrelated_settings(self):
+        with open(config.SETTINGS_PATH, "w", encoding="utf-8") as f:
+            f.write("theme: dark\n")
+        config.save_llm_choice("GLM")
+        self.assertEqual(config.load_settings().get("theme"), "dark")
+
+
 if __name__ == "__main__":
     unittest.main()

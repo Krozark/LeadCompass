@@ -29,16 +29,26 @@ def _extract_json(text: str) -> dict:
 
 
 def generate_profile_from_folders(
-    directories: list[str],
+    folders: list[tuple[str, str]],
     existing_profile: BusinessProfile,
     backend: ClaudeCLIBackend,
 ) -> BusinessProfile:
-    """Explore `directories` and return a (re)generated business profile.
+    """Explore `folders` and return a (re)generated business profile.
 
+    Each folder is a ``(path, description)`` tuple; description may be empty.
     Only makes sense with a backend that can actually browse the filesystem
     (Claude via the CLI) — GLM has no file access and would just hallucinate.
     """
-    user_prompt = "Dossiers à explorer :\n" + "\n".join(f"- {d}" for d in directories)
+    directories = [path for path, _ in folders]
+
+    folder_lines = []
+    for path, description in folders:
+        line = f"- {path}"
+        if description.strip():
+            line += f" — {description.strip()}"
+        folder_lines.append(line)
+
+    user_prompt = "Dossiers à explorer :\n" + "\n".join(folder_lines)
     if existing_profile.is_configured:
         user_prompt += (
             "\n\nProfil actuel à affiner/mettre à jour à la lumière de ces dossiers "

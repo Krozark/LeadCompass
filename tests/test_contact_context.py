@@ -34,6 +34,28 @@ class BuildContactContextTests(unittest.TestCase):
         text = build_contact_context(contact, engagements)
         self.assertIn("hello note", text)
 
+    def test_marks_email_direction(self):
+        contact = {"properties": {}}
+        engagements = [
+            {
+                "engagement_type": "emails",
+                "properties": {"hs_email_text": "notre proposition", "hs_email_direction": "EMAIL"},
+            },
+            {
+                "engagement_type": "emails",
+                "properties": {"hs_email_text": "leur réponse", "hs_email_direction": "INCOMING_EMAIL"},
+            },
+        ]
+        text = build_contact_context(contact, engagements)
+        self.assertIn("[email envoyé] notre proposition", text)
+        self.assertIn("[email reçu] leur réponse", text)
+
+    def test_email_without_direction_keeps_generic_label(self):
+        contact = {"properties": {}}
+        engagements = [{"engagement_type": "emails", "properties": {"hs_email_text": "contenu"}}]
+        text = build_contact_context(contact, engagements)
+        self.assertIn("[emails]", text)
+
     def test_truncates_long_body_to_300_chars(self):
         contact = {"properties": {}}
         engagements = [{"properties": {"hs_note_body": "x" * 500}, "engagement_type": "notes"}]
