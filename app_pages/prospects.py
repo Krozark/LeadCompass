@@ -220,9 +220,16 @@ with col_detail:
                     st.session_state[summary_key] = body[len(_LC_PREFIX) :]
                     break
 
+        extra_info = st.text_area(
+            "Informations complémentaires",
+            placeholder="Contexte supplémentaire à transmettre à l'IA (ex. : secteur d'activité, besoin identifié, remarques…)",
+            height=80,
+            key=f"summary_extra_{contact_id}",
+        )
+
         if st.button("Générer le résumé", icon=":material/auto_awesome:"):
             with st.spinner("Génération en cours..."):
-                st.session_state[summary_key] = generate_summary(context, profile, claude)
+                st.session_state[summary_key] = generate_summary(context, profile, claude, extra_info)
 
         if summary_key in st.session_state:
             st.write(st.session_state[summary_key])
