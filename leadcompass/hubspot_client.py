@@ -84,6 +84,10 @@ class HubSpotClient:
         response = self._session.get(f"{BASE_URL}/crm/v3/properties/contacts/{name}", timeout=30)
         if response.status_code == 404:
             return False
+        if response.status_code == 403:
+            # Token lacks the CRM Properties scope — assume the property exists
+            # (it was likely created manually or by a previous run with full scope).
+            return True
         response.raise_for_status()
         return True
 

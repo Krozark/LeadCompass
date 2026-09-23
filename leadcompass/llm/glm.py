@@ -16,9 +16,11 @@ class GLMBackend:
         self._model = model
 
     def generate(self, system: str, user: str) -> str:
+        # GLM-5.3 is a thinking model: its reasoning trace consumes tokens before
+        # the visible reply, so max_tokens must be large enough for both.
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=2048,
+            max_tokens=16000,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
