@@ -230,7 +230,7 @@ with col_detail:
 
     if profile.prospect_types:
         type_key = f"prospect_type_select_{contact_id}"
-        current_type = props.get("leadcompass_prospect_type") or ""
+        current_type = props.get("leadcompass__type_de_prospect") or ""
         type_options = ["", *profile.prospect_types]
 
         def _on_type_change(cid: str = contact_id) -> None:

@@ -24,9 +24,9 @@ CONTACT_PROPERTIES = [
     "company",
     "jobtitle",
     "phone",
-    "leadcompass_score",
-    "leadcompass_classification",
-    "leadcompass_prospect_type",
+    "leadcompas__score_de_pertinence",
+    "leadcompas__classification",
+    "leadcompass__type_de_prospect",
 ]
 
 ENGAGEMENT_TYPES: dict[str, list[str]] = {
@@ -35,7 +35,7 @@ ENGAGEMENT_TYPES: dict[str, list[str]] = {
 }
 
 PROSPECT_TYPE_PROPERTY = {
-    "name": "leadcompass_prospect_type",
+    "name": "leadcompass__type_de_prospect",
     "label": "LeadCompass - Type de prospect",
     "type": "string",
     "fieldType": "text",
@@ -44,14 +44,14 @@ PROSPECT_TYPE_PROPERTY = {
 
 SCORE_PROPERTIES = [
     {
-        "name": "leadcompass_score",
+        "name": "leadcompas__score_de_pertinence",
         "label": "LeadCompass - Score de pertinence",
         "type": "number",
         "fieldType": "number",
         "groupName": "contactinformation",
     },
     {
-        "name": "leadcompass_classification",
+        "name": "leadcompas__classification",
         "label": "LeadCompass - Classification",
         "type": "enumeration",
         "fieldType": "select",
@@ -161,14 +161,19 @@ class HubSpotClient:
         self._request(
             "PATCH",
             f"/crm/v3/objects/contacts/{contact_id}",
-            json={"properties": {"leadcompass_score": score, "leadcompass_classification": classification}},
+            json={
+                "properties": {
+                    "leadcompas__score_de_pertinence": score,
+                    "leadcompas__classification": classification,
+                }
+            },
         )
 
     def set_prospect_type(self, contact_id: str, type_value: str) -> None:
         self._request(
             "PATCH",
             f"/crm/v3/objects/contacts/{contact_id}",
-            json={"properties": {"leadcompass_prospect_type": type_value}},
+            json={"properties": {"leadcompass__type_de_prospect": type_value}},
         )
 
     def filter_contacts_by_type(
@@ -178,7 +183,11 @@ class HubSpotClient:
             "filterGroups": [
                 {
                     "filters": [
-                        {"propertyName": "leadcompass_prospect_type", "operator": "EQ", "value": type_value}
+                        {
+                            "propertyName": "leadcompass__type_de_prospect",
+                            "operator": "EQ",
+                            "value": type_value,
+                        }
                     ]
                 }
             ],
