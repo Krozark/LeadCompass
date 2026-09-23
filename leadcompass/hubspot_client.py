@@ -161,3 +161,27 @@ class HubSpotClient:
                 "PUT",
                 f"/crm/v3/objects/notes/{note_id}/associations/contacts/{contact_id}/note_to_contact",
             )
+
+    def create_email_log(self, contact_id: str, body_text: str, direction: str, subject: str = "") -> None:
+        """Log a sent or received email on a contact.
+
+        direction: "EMAIL" (outgoing) or "INCOMING_EMAIL" (incoming).
+        """
+        email = self._request(
+            "POST",
+            "/crm/v3/objects/emails",
+            json={
+                "properties": {
+                    "hs_email_direction": direction,
+                    "hs_email_subject": subject,
+                    "hs_email_text": body_text,
+                    "hs_timestamp": int(time.time() * 1000),
+                }
+            },
+        )
+        email_id = email.get("id")
+        if email_id:
+            self._request(
+                "PUT",
+                f"/crm/v3/objects/emails/{email_id}/associations/contacts/{contact_id}/email_to_contact",
+            )

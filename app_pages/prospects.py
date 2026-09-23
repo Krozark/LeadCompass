@@ -214,19 +214,38 @@ with col_detail:
                         _save_note(contact_id, st.session_state[area_key])
 
     with tab_exchanges:
-        with st.form("new_exchange_form", border=False):
+        _EXCHANGE_TYPES = {"note": "Note", "sent": "Email envoyé", "received": "Email reçu"}
+        exchange_type = st.segmented_control(
+            "Type d'échange",
+            options=list(_EXCHANGE_TYPES.keys()),
+            format_func=lambda k: _EXCHANGE_TYPES[k],
+            default="note",
+            key=f"exchange_type_{contact_id}",
+        )
+
+        with st.form(f"new_exchange_form_{contact_id}", border=False):
+            if exchange_type in ("sent", "received"):
+                subject_input = st.text_input("Sujet", placeholder="Sujet de l'email")
+            else:
+                subject_input = ""
             note_text = st.text_area(
-                "Nouvel échange",
-                placeholder="Résumé d'un appel, note de contexte, email envoyé…",
+                "Contenu",
+                placeholder="Résumé d'un appel, note de contexte, corps de l'email…",
                 height=100,
                 label_visibility="collapsed",
             )
-            add_submitted = st.form_submit_button("Ajouter un échange", icon=":material/add:")
+            add_submitted = st.form_submit_button("Ajouter", icon=":material/add:")
 
         if add_submitted:
             if note_text.strip():
                 try:
-                    hubspot.create_note(contact_id, note_text.strip())
+                    if exchange_type == "note":
+                        hubspot.create_note(contact_id, note_text.strip())
+                    else:
+                        direction = "INCOMING_EMAIL" if exchange_type == "received" else "EMAIL"
+                        hubspot.create_email_log(
+                            contact_id, note_text.strip(), direction, subject_input.strip()
+                        )
                     _get_engagements.clear()
                     st.success("Échange enregistré.")
                     st.rerun()
@@ -240,7 +259,8 @@ with col_detail:
         if not engagements:
             st.caption("Aucun échange enregistré pour ce prospect.")
         else:
-            for eng in reversed(engagements):
+            recent = list(reversed(engagements))
+            for idx, eng in enumerate(recent):
                 eprops = eng.get("properties", {})
                 eng_type = eng.get("engagement_type", "notes")
                 is_email = eng_type == "emails"
@@ -251,20 +271,23 @@ with col_detail:
                     with contextlib.suppress(ValueError, OSError):
                         date_str = datetime.fromtimestamp(int(ts) / 1000).strftime("%d/%m/%Y %H:%M")
 
-                with st.container(border=True):
-                    header_cols = st.columns([7, 3])
-                    if is_email:
-                        subject = eprops.get("hs_email_subject") or "Email"
-                        direction = eprops.get("hs_email_direction", "")
-                        dir_icon = (
-                            ":material/call_received:" if "INCOMING" in direction else ":material/call_made:"
-                        )
-                        header_cols[0].markdown(f":material/mail: {dir_icon} **{subject}**")
-                    else:
-                        header_cols[0].markdown(":material/note: **Note**")
-                    if date_str:
-                        header_cols[1].caption(date_str)
+                body = eprops.get("hs_note_body") or eprops.get("hs_email_text") or ""
 
-                    body = eprops.get("hs_note_body") or eprops.get("hs_email_text") or ""
+                if is_email:
+                    subject = eprops.get("hs_email_subject") or "Email"
+                    direction = eprops.get("hs_email_direction", "")
+                    dir_label = "reçu" if "INCOMING" in direction else "envoyé"
+                    label = f"{subject}  ·  {dir_label}" + (f"  ·  {date_str}" if date_str else "")
+                    icon = ":material/mail:"
+                else:
+                    preview = (body[:60] + "…") if len(body) > 60 else body
+                    label = ("Note" + (f"  ·  {date_str}" if date_str else "")) + (
+                        f"  —  {preview}" if preview else ""
+                    )
+                    icon = ":material/note:"
+
+                with st.expander(label, icon=icon, expanded=(idx < 3)):
                     if body:
-                        st.caption(body[:400] + ("…" if len(body) > 400 else ""))
+                        st.markdown(body)
+                    else:
+                        st.caption("Aucun contenu.")

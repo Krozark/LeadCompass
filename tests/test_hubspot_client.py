@@ -91,6 +91,34 @@ class HubSpotClientBehaviorTests(unittest.TestCase):
         self.assertEqual(len(engagements), 1)
         self.assertEqual(engagements[0]["engagement_type"], "notes")
 
+    def test_create_email_log_outgoing(self):
+        calls = []
+
+        def fake_request(method, url, timeout=30, **kwargs):
+            calls.append((method, url))
+            if method == "POST" and url.endswith("/emails"):
+                return _response(json_data={"id": "email-1"})
+            return _response(json_data={})
+
+        self.client._session.request.side_effect = fake_request
+        self.client.create_email_log("contact-1", "body", "EMAIL", "Sujet")
+        methods = [c[0] for c in calls]
+        self.assertIn("POST", methods)
+        self.assertIn("PUT", methods)
+        self.assertIn("/emails", calls[0][1])
+
+    def test_create_email_log_raises_when_association_fails(self):
+        def fake_request(method, url, timeout=30, **kwargs):
+            if method == "POST" and url.endswith("/emails"):
+                return _response(json_data={"id": "email-1"})
+            if method == "PUT":
+                return _response(status_code=404)
+            return _response(json_data={})
+
+        self.client._session.request.side_effect = fake_request
+        with self.assertRaises(requests.HTTPError):
+            self.client.create_email_log("contact-1", "body", "INCOMING_EMAIL")
+
     def test_create_note_raises_when_association_fails(self):
         def fake_request(method, url, timeout=30, **kwargs):
             if method == "POST" and url.endswith("/notes"):
