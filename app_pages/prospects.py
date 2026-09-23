@@ -137,15 +137,29 @@ st.session_state.setdefault("type_filter", "")
 col_list, col_detail = st.columns([1, 2])
 
 with col_list:
-    with st.form("search_form", border=False), st.container(horizontal=True, vertical_alignment="bottom"):
-        query_input = st.text_input(
-            "Rechercher",
-            value=st.session_state["search_query"],
-            type="search",
-            placeholder="Nom, email, entreprise…",
-            label_visibility="collapsed",
-        )
-        submitted = st.form_submit_button("Rechercher", icon=":material/search:")
+    with st.container(horizontal=True, vertical_alignment="bottom"):
+        with st.form("search_form", border=False), st.container(horizontal=True, vertical_alignment="bottom"):
+            query_input = st.text_input(
+                "Rechercher",
+                value=st.session_state["search_query"],
+                type="search",
+                placeholder="Nom, email, entreprise…",
+                label_visibility="collapsed",
+            )
+            submitted = st.form_submit_button("Rechercher", icon=":material/search:")
+
+        if st.button(
+            "Actualiser",
+            icon=":material/refresh:",
+            help="Recharger la liste depuis HubSpot, contacts ajoutés via la Découverte inclus.",
+        ):
+            _list_contacts_page.clear()
+            _search_contacts_page.clear()
+            _filter_contacts_page.clear()
+            _get_engagements.clear()
+            st.session_state["search_results"] = []
+            st.session_state["search_after"] = None
+            st.rerun()
 
     if submitted:
         st.session_state["search_query"] = query_input
