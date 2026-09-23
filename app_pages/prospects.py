@@ -54,9 +54,11 @@ except HubSpotError as exc:
     st.stop()
 
 
-# Notes created by LeadCompass (summaries, scores, drafts) carry this prefix so
-# they are never confused with manual exchange logs in the Échanges tab.
-_LC_PREFIX = "[LeadCompass] "
+# Notes created by LeadCompass carry a typed prefix so different note kinds can
+# be retrieved and displayed in the right tab.
+_LC_PREFIX = "[LeadCompass] "  # legacy / generic fallback
+_LC_SUMMARY_PREFIX = "[LeadCompass:résumé] "
+_LC_DRAFT_PREFIX = "[LeadCompass:brouillon] "
 
 _EXCHANGE_DIR = {"sent": "EMAIL", "received": "INCOMING_EMAIL"}
 _EXCHANGE_LABELS = {"sent": "Email envoyé", "received": "Email reçu"}
@@ -70,9 +72,9 @@ def _fmt_ts(ts: str | None) -> str:
     return ""
 
 
-def _save_note(contact_id: str, text: str) -> None:
+def _save_note(contact_id: str, text: str, prefix: str = _LC_PREFIX) -> None:
     try:
-        hubspot.create_note(contact_id, _LC_PREFIX + text)
+        hubspot.create_note(contact_id, prefix + text)
         st.success("Enregistré dans HubSpot.")
     except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
         st.error(f"Échec de l'enregistrement dans HubSpot : {exc}")
@@ -204,6 +206,20 @@ with col_detail:
 
     with tab_summary:
         summary_key = f"summary_{contact_id}"
+
+        # Pre-load from the most recent résumé note saved in HubSpot
+        if summary_key not in st.session_state:
+            for eng in reversed(engagements):
+                if eng.get("engagement_type") != "notes":
+                    continue
+                body = eng.get("properties", {}).get("hs_note_body") or ""
+                if body.startswith(_LC_SUMMARY_PREFIX):
+                    st.session_state[summary_key] = body[len(_LC_SUMMARY_PREFIX) :]
+                    break
+                if body.startswith(_LC_PREFIX):  # backward compat with old notes
+                    st.session_state[summary_key] = body[len(_LC_PREFIX) :]
+                    break
+
         if st.button("Générer le résumé", icon=":material/auto_awesome:"):
             with st.spinner("Génération en cours..."):
                 st.session_state[summary_key] = generate_summary(context, profile, claude)
@@ -213,7 +229,7 @@ with col_detail:
             if st.button(
                 "Enregistrer dans HubSpot", key=f"save_summary_{contact_id}", icon=":material/save:"
             ):
-                _save_note(contact_id, st.session_state[summary_key])
+                _save_note(contact_id, st.session_state[summary_key], prefix=_LC_SUMMARY_PREFIX)
 
     with tab_score:
         score_key = f"score_{contact_id}"
@@ -269,7 +285,7 @@ with col_detail:
                         key=f"save_draft_{area_key}",
                         icon=":material/save:",
                     ):
-                        _save_note(contact_id, st.session_state[area_key])
+                        _save_note(contact_id, st.session_state[area_key], prefix=_LC_DRAFT_PREFIX)
 
     with tab_exchanges:
         exchange_type = st.segmented_control(
