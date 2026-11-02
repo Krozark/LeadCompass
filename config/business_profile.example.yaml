@@ -30,3 +30,11 @@ scoring_criteria:
   - name: "Timing / urgence"
     description: "Besoin ou projet exprimé maintenant, plutôt qu'un contact exploratoire sans échéance."
     weight: 1
+
+# Optional: precise targets for the "Découverte" page. The description is added
+# to the model's context; search_guide pre-fills the search box.
+personas:
+  - name: "Example persona"
+    description: >
+      Who they are, what they need, why your product helps them.
+    search_guide: "What to look for on the web (type of organisation, region, role...)."

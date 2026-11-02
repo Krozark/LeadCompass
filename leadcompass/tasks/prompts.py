@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from leadcompass.config import BusinessProfile
+from leadcompass.config import BusinessProfile, Persona
 
 DRAFT_TYPES = {
     "premier_contact": "un premier email de prise de contact",
@@ -44,11 +44,17 @@ def drafting_system_prompt(profile: BusinessProfile, draft_type: str) -> str:
     )
 
 
-def discovery_system_prompt(profile: BusinessProfile) -> str:
+def discovery_system_prompt(profile: BusinessProfile, persona: Persona | None = None) -> str:
+    persona_text = (
+        f"{persona.to_prompt_context()}\n\nNe propose que des contacts correspondant à ce persona.\n\n"
+        if persona
+        else ""
+    )
     return (
         "Tu es un assistant de développement commercial. Tu identifies de nouveaux "
         "prospects, influenceurs ou partenaires pour l'entreprise suivante :\n"
         f"{profile.to_prompt_context()}\n\n"
+        f"{persona_text}"
         "À partir de la description libre fournie par le commercial, cherche sur le web "
         "des personnes ou organisations réelles correspondant à cette description, en "
         "français dans la mesure du possible. Ne propose que des contacts dont "

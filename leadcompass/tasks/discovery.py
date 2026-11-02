@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from leadcompass.config import BusinessProfile
+from leadcompass.config import BusinessProfile, Persona
 from leadcompass.llm.base import LLMBackend
 from leadcompass.tasks.prompts import discovery_system_prompt
 
@@ -33,14 +33,16 @@ def discover_prospects(
     backend: LLMBackend,
     count: int = 10,
     known_identities: list[str] | None = None,
+    persona: Persona | None = None,
 ) -> list[dict]:
     """Recherche de nouveaux contacts (prospects, influenceurs...) sur le web.
 
     `guide` est une description libre de ce que le commercial cherche ; nécessite
     un backend avec accès web (Claude via le CLI). `known_identities` liste les
-    noms/organisations déjà dans HubSpot, que le modèle doit exclure.
+    noms/organisations déjà dans HubSpot, que le modèle doit exclure. `persona`,
+    s'il est fourni, restreint la recherche à cette cible.
     """
-    system = discovery_system_prompt(profile)
+    system = discovery_system_prompt(profile, persona)
     user = f"Recherche : {guide.strip()}\n\nPropose jusqu'à {count} contacts."
     if known_identities:
         listed = "\n".join(f"- {identity}" for identity in known_identities)

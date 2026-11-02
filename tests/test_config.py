@@ -9,6 +9,7 @@ from leadcompass import config
 from leadcompass.config import (
     BusinessProfile,
     LLMBackendConfig,
+    Persona,
     ScoringCriterion,
     load_business_profile,
     load_llm_backends,
@@ -26,6 +27,7 @@ class BusinessProfileTests(unittest.TestCase):
             value_proposition="Cheaper widgets",
             tone="direct",
             scoring_criteria=[ScoringCriterion("Fit", "Sector fit", 2.0)],
+            personas=[Persona("Bar", "Gérant", "bars à jeux")],
         )
         self.assertEqual(BusinessProfile.from_dict(profile.to_dict()), profile)
 

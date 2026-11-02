@@ -9,6 +9,7 @@ import streamlit as st
 from leadcompass.config import (
     BusinessProfile,
     LLMBackendConfig,
+    Persona,
     ScoringCriterion,
     load_business_profile,
     load_llm_backends,
@@ -157,6 +158,29 @@ with st.form("business_profile_form"):
         column_config={"type": st.column_config.TextColumn("Type", required=True)},
     )
 
+    st.subheader("Personas de recherche")
+    st.caption(
+        "Cibles précises pour la page Découverte : qui est la personne (rôle, besoins, "
+        "pourquoi le produit lui sert) et la consigne de recherche web associée."
+    )
+    personas_df = pd.DataFrame(
+        [
+            {"name": p.name, "description": p.description, "search_guide": p.search_guide}
+            for p in profile.personas
+        ],
+        columns=["name", "description", "search_guide"],
+    )
+    edited_personas = st.data_editor(
+        personas_df,
+        num_rows="dynamic",
+        hide_index=True,
+        column_config={
+            "name": st.column_config.TextColumn("Nom", required=True),
+            "description": st.column_config.TextColumn("Description du persona"),
+            "search_guide": st.column_config.TextColumn("Consigne de recherche"),
+        },
+    )
+
     st.subheader("Grille de score de pertinence")
     criteria_df = pd.DataFrame(
         [
@@ -184,6 +208,15 @@ if submitted:
     prospect_types = [
         str(row["type"]).strip() for _, row in edited_types.iterrows() if str(row["type"]).strip()
     ]
+    personas = [
+        Persona(
+            str(row["name"]).strip(),
+            str(row["description"] or "").strip(),
+            str(row["search_guide"] or "").strip(),
+        )
+        for _, row in edited_personas.iterrows()
+        if str(row["name"]).strip()
+    ]
     criteria = [
         ScoringCriterion(str(row["name"]).strip(), str(row["description"]).strip(), float(row["weight"]))
         for _, row in edited_criteria.iterrows()
@@ -198,6 +231,7 @@ if submitted:
         tone=tone,
         scoring_criteria=criteria,
         prospect_types=prospect_types,
+        personas=personas,
     )
     save_business_profile(new_profile)
     st.session_state.pop("generated_profile", None)
