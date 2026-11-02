@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import yaml
@@ -28,6 +28,18 @@ class ScoringCriterion:
 
 
 @dataclass
+class Persona:
+    """Cible précise d'une recherche de prospects : qui elle est, et comment la trouver."""
+
+    name: str
+    description: str = ""
+    search_guide: str = ""
+
+    def to_prompt_context(self) -> str:
+        return f"Persona ciblé : {self.name}\n{self.description}"
+
+
+@dataclass
 class LLMBackendConfig:
     """Un modèle IA exposé par un CLI compatible Claude Code (binaire + arguments déjà en place)."""
 
@@ -44,6 +56,7 @@ class BusinessProfile:
     tone: str = "professionnel"
     scoring_criteria: list[ScoringCriterion] = field(default_factory=list)
     prospect_types: list[str] = field(default_factory=list)
+    personas: list[Persona] = field(default_factory=list)
 
     @property
     def is_configured(self) -> bool:
@@ -73,6 +86,7 @@ class BusinessProfile:
                 for c in self.scoring_criteria
             ],
             "prospect_types": self.prospect_types,
+            "personas": [asdict(p) for p in self.personas],
         }
 
     @classmethod
@@ -88,6 +102,10 @@ class BusinessProfile:
                 for c in data.get("scoring_criteria", [])
             ],
             prospect_types=data.get("prospect_types", []),
+            personas=[
+                Persona(p.get("name", ""), p.get("description", ""), p.get("search_guide", ""))
+                for p in data.get("personas", [])
+            ],
         )
 
 
@@ -103,6 +121,7 @@ def load_business_profile() -> BusinessProfile:
         **data.get("company", {}),
         "scoring_criteria": data.get("scoring_criteria", []),
         "prospect_types": data.get("prospect_types", []),
+        "personas": data.get("personas", []),
     }
     return BusinessProfile.from_dict(flat)
 
@@ -116,6 +135,7 @@ def save_business_profile(profile: BusinessProfile) -> None:
         },
         "scoring_criteria": payload["scoring_criteria"],
         "prospect_types": payload["prospect_types"],
+        "personas": payload["personas"],
     }
     CONFIG_DIR.mkdir(exist_ok=True)
     with open(PROFILE_PATH, "w", encoding="utf-8") as f:

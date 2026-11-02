@@ -58,8 +58,18 @@ def _known_contact_keys() -> tuple[set[str], set[str]]:
     return emails, identities
 
 
+persona = None
+if profile.personas:
+    persona = st.selectbox(
+        "Persona",
+        [None, *profile.personas],
+        format_func=lambda p: p.name if p else "— Recherche libre —",
+    )
+
 guide = st.text_area(
     "Qui cherches-tu ?",
+    value=persona.search_guide if persona else "",
+    key=f"discovery_guide_{persona.name if persona else ''}",
     placeholder=(
         "Ex. : festivals de musique en Bretagne avec une programmation jazz ; "
         "influenceurs LinkedIn sur la data B2B ; PME industrielles en Auvergne..."
@@ -100,6 +110,7 @@ if st.button("Lancer la recherche", icon=":material/travel_explore:", disabled=l
                         llm,
                         int(count),
                         known_identities=sorted(known_identities) or None,
+                        persona=persona,
                     ),
                     known_emails,
                     known_identities,

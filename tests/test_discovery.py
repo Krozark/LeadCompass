@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from leadcompass.config import BusinessProfile
+from leadcompass.config import BusinessProfile, Persona
 from leadcompass.tasks.discovery import discover_prospects, split_known_leads
 
 
@@ -78,6 +78,19 @@ class DiscoverProspectsTests(unittest.TestCase):
         _, user = backend.calls[0]
         self.assertIn("Festival du Ponant", user)
         self.assertIn("Marie Martin", user)
+
+    def test_prompt_includes_persona(self):
+        backend = FakeBackend(json.dumps(_payload()))
+        persona = Persona("Bar à jeux", "Gérant de bar à jeux", "bars à jeux en Bretagne")
+        discover_prospects(persona.search_guide, BusinessProfile(), backend, persona=persona)
+        system, _ = backend.calls[0]
+        self.assertIn("Bar à jeux", system)
+        self.assertIn("Gérant de bar à jeux", system)
+
+    def test_prompt_without_persona_has_no_persona_block(self):
+        backend = FakeBackend(json.dumps(_payload()))
+        discover_prospects("guide", BusinessProfile(), backend)
+        self.assertNotIn("Persona", backend.calls[0][0])
 
 
 class SplitKnownLeadsTests(unittest.TestCase):
